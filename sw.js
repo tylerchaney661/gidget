@@ -1,10 +1,12 @@
-// Gidget Service Worker — v17 (development passthrough + safe caching)
-const CACHE_STATIC = 'gidget-static-v17';
-const CACHE_HTML   = 'gidget-html-v17';
+// Gidget Service Worker — v18 (network-first HTML, safe caching)
+const CACHE_STATIC = 'gidget-static-v18';
+const CACHE_HTML   = 'gidget-html-v18';
 
 const ASSETS = [
   './',
   './index.html',
+  './style.css?v=14',
+  './app.js?v=14',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -21,7 +23,7 @@ self.addEventListener('activate', (event) => {
     await Promise.all(keys.filter(k=>![CACHE_STATIC, CACHE_HTML].includes(k)).map(k=>caches.delete(k)));
     await self.clients.claim();
     const clients = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
-    for (const client of clients) client.postMessage({ type:'SW_ACTIVATED', version:'v17' });
+    for (const client of clients) client.postMessage({ type:'SW_ACTIVATED', version:'v18' });
   })());
 });
 
@@ -30,13 +32,13 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Bypass per request: ?nosw=1
+  // Per-request bypass
   if (url.searchParams.get('nosw') === '1') {
     event.respondWith(fetch(req));
     return;
   }
 
-  // HTML: network-first, cache as fallback
+  // HTML: network-first to avoid stale UI
   if (event.request.mode === 'navigate' || (req.headers.get('accept')||'').includes('text/html')) {
     event.respondWith(
       fetch(req, { cache: 'no-store' })
@@ -53,7 +55,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Other GET: network-first then cache; fallback to cache when offline
+  // Other GET: network-first, fallback to cache
   event.respondWith(
     fetch(req)
       .then(async (fresh) => {

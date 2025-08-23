@@ -1,266 +1,109 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gidget · Hamster Tracker</title>
-  <meta name="theme-color" content="#0B0F14" />
-  <meta name="x-gidget-version" content="2025-08-23-13" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="style.css?v=13" />
-</head>
-<body>
-  <!-- ============== Header ============== -->
-  <header id="topbar">
-    <nav class="nav">
-      <div class="brand">
-        <div class="badge" aria-hidden="true">G</div>
-        <div>
-          <div class="title">Gidget · Hamster Tracker</div>
-          <div class="muted tiny">Wake‑up · Steps · Trends · Calendar · Offline</div>
-        </div>
-      </div>
+function renderWakeCalendar(){
+  const rows=loadWake();
+  const box=document.querySelector('#calendar'); if(!box) return; box.innerHTML='';
+  const title=document.querySelector('#calTitle'); if(title) title.textContent=calRef.toLocaleString(undefined,{month:'long',year:'numeric'});
 
-      <div class="theme-controls">
-        <div class="group" role="group" aria-label="Theme mode">
-          <button id="themeLight" class="btn small">Light</button>
-          <button id="themeSystem" class="btn small">System</button>
-          <button id="themeDark" class="btn small">Dark</button>
-        </div>
-        <div class="group" role="group" aria-label="Accent">
-          <button class="swatch" data-accent="blue"   title="Blue"></button>
-          <button class="swatch" data-accent="mint"   title="Mint"></button>
-          <button class="swatch" data-accent="violet" title="Violet"></button>
-          <button class="swatch" data-accent="amber"  title="Amber"></button>
-          <button class="swatch" data-accent="rose"   title="Rose"></button>
-        </div>
-        <button id="exportCsv" class="btn">Export CSV</button>
-        <label class="btn">
-          <input type="file" id="importCsv" accept=".csv" hidden />
-          Import CSV
-        </label>
-        <button id="installInfo" class="btn solid">Install</button>
-      </div>
-    </nav>
-  </header>
+  const y=calRef.getFullYear(), m=calRef.getMonth();
+  const first=new Date(y,m,1);
+  const start=new Date(first);
+  const lead=(first.getDay()+6)%7; // Monday-first grid
+  start.setDate(1-lead);
 
-  <!-- ============== Main ============== -->
-  <main>
-    <!-- Tabs -->
-    <div class="tabs" id="tabs">
-      <button class="tab active" data-tab="log">Log</button>
-      <button class="tab" data-tab="trends">Trends</button>
-      <button class="tab" data-tab="calendar">Calendar</button>
-      <button class="tab" data-tab="entries">Entries</button>
-      <button class="tab" data-tab="steps-log">Steps Log</button>
-      <button class="tab" data-tab="steps-trends">Steps Trends</button>
-      <button class="tab" data-tab="steps-calendar">Steps Calendar</button>
-      <button class="tab" data-tab="steps-entries">Steps Entries</button>
-    </div>
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const iso=ymd(d);
+    const rec=rows.find(function(r){ return r.date===iso; });
 
-    <!-- Wake Log -->
-    <section class="grid tabpanel" id="panel-log">
-      <section class="card">
-        <h3>Quick Log (Wake)</h3>
-        <div class="row">
-          <div class="col">
-            <label for="date">Date</label>
-            <input id="date" type="date" />
-          </div>
-          <div class="col">
-            <label for="wake">Wake‑Up Time</label>
-            <div class="row">
-              <input id="wake" type="time" style="flex:1" />
-              <button id="nowBtn" class="btn">Now</button>
-            </div>
-          </div>
-        </div>
+    const cell=document.createElement('div');
+    cell.className='cell';
+    cell.style.opacity = (d.getMonth()===m)?1:.45;
+    cell.innerHTML = '<div class="d">'+d.getDate()+'</div><div class="tiny mt">'+(rec&&rec.wake?rec.wake:'—')+'</div>';
 
-        <div class="row">
-          <div class="col">
-            <label for="weight">Weight (g)</label>
-            <input id="weight" type="number" min="0" step="1" />
-          </div>
-          <div class="col">
-            <label for="mood">Mood</label>
-            <select id="mood">
-              <option value="">—</option>
-              <option>Calm</option><option>Curious</option><option>Energetic</option>
-              <option>Grumpy</option><option>Sleepy</option>
-            </select>
-          </div>
-        </div>
+    cell.onclick=function(){
+      var html = '';
+      if(rec){
+        html =
+          '<div><b>Date</b>: '+iso+'</div>'+
+          '<div><b>Wake</b>: '+(rec.wake||'—')+'</div>'+
+          '<div><b>Weight</b>: '+(rec.weight||'—')+' g</div>'+
+          '<div><b>Mood</b>: '+(rec.mood||'—')+'</div>'+
+          '<div class="mt"><b>Notes</b>: '+(rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—')+'</div>'+
+          '<div class="row mt end"><button id="editDayBtn" class="btn solid">Edit this day</button></div>';
+      } else {
+        html =
+          '<div>No wake entry for '+iso+'.</div>'+
+          '<div class="row mt end"><button id="editDayBtn" class="btn solid">Add entry</button></div>';
+      }
 
-        <label for="notes">Notes</label>
-        <textarea id="notes" placeholder="Behaviour, room temp, cage changes…"></textarea>
+      openModal('Wake • '+iso, html);
 
-        <div class="row mt">
-          <button id="save" class="btn solid">Save Entry</button>
-          <button id="clearForm" class="btn">Clear</button>
-        </div>
+      var edit=document.getElementById('editDayBtn');
+      if(edit){
+        edit.onclick=function(){
+          activateTab('log');
+          document.getElementById('date').value=iso;
+          document.getElementById('wake').value=(rec&&rec.wake)||'';
+          document.getElementById('weight').value=(rec&&rec.weight)||'';
+          document.getElementById('mood').value=(rec&&rec.mood)||'';
+          document.getElementById('notes').value=(rec&&rec.notes)||'';
+          document.getElementById('modal').hidden=true;
+        };
+      }
+    };
 
-        <div class="muted mt" id="todayBox">—</div>
-        <div class="row mt">
-          <span id="streak" class="pill">Streak: 0</span>
-          <span id="avg7" class="pill">7‑day avg: —</span>
-        </div>
-      </section>
+    box.appendChild(cell);
+  }
+}
 
-      <section class="card">
-        <h3>Filter</h3>
-        <div class="row">
-          <div class="col">
-            <label for="filterFrom">From</label>
-            <input id="filterFrom" type="date" />
-          </div>
-          <div class="col">
-            <label for="filterTo">To</label>
-            <input id="filterTo" type="date" />
-          </div>
-        </div>
-        <div class="row mt">
-          <button id="applyFilter" class="btn">Apply</button>
-          <button id="resetFilter" class="btn">Reset</button>
-        </div>
-      </section>
-    </section>
+function renderStepsCalendar(){
+  const rows=loadSteps();
+  const box=document.querySelector('#stepsCalendar'); if(!box) return; box.innerHTML='';
+  const title=document.querySelector('#stepsCalTitle'); if(title) title.textContent=stepsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
 
-    <!-- Wake Trends -->
-    <section class="card tabpanel" id="panel-trends" hidden>
-      <div class="row between">
-        <div class="row">
-          <button class="btn small rangeBtn" data-range="7">Week</button>
-          <button class="btn small rangeBtn" data-range="30">Month</button>
-          <button class="btn small rangeBtn" data-range="365">Year</button>
-        </div>
-        <div class="row">
-          <label for="smooth" class="muted m0">Smoothing</label>
-          <select id="smooth">
-            <option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option>
-          </select>
-        </div>
-      </div>
-      <canvas id="chart"></canvas>
-      <div class="muted" id="chartMeta">—</div>
-    </section>
+  const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth();
+  const first=new Date(y,m,1);
+  const start=new Date(first);
+  const lead=(first.getDay()+6)%7;
+  start.setDate(1-lead);
 
-    <!-- Wake Calendar -->
-    <section class="card tabpanel" id="panel-calendar" hidden>
-      <div class="row between">
-        <div class="row">
-          <button id="prevMonth" class="btn small">‹</button>
-          <button id="todayMonth" class="btn small">Today</button>
-          <button id="nextMonth" class="btn small">›</button>
-        </div>
-        <div>
-          <div class="title clickable" id="calTitle" tabindex="0" role="button" aria-label="Choose month">—</div>
-          <div class="muted tiny">Tap the month to choose another</div>
-        </div>
-      </div>
-      <div class="cal-head mt"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
-      <div class="calendar" id="calendar"></div>
-    </section>
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const iso=ymd(d);
+    const rec=rows.find(function(r){ return r.date===iso; });
 
-    <!-- Wake Entries -->
-    <section class="card tabpanel" id="panel-entries" hidden>
-      <h3>Entries</h3>
-      <table id="table">
-        <thead><tr><th>Date</th><th>Wake‑Up</th><th>Weight</th><th>Mood</th><th>Food</th><th>Sand</th><th>Notes</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
+    const cell=document.createElement('div');
+    cell.className='cell';
+    cell.style.opacity=(d.getMonth()===m)?1:.45;
+    cell.innerHTML='<div class="d">'+d.getDate()+'</div><div class="tiny mt">'+(rec&&rec.steps?rec.steps:'—')+'</div>';
 
-    <!-- Steps Log -->
-    <section class="grid tabpanel" id="panel-steps-log" hidden>
-      <section class="card">
-        <h3>Steps Log (Morning)</h3>
-        <div class="row">
-          <div class="col">
-            <label for="stepsDate">Date</label>
-            <input id="stepsDate" type="date" />
-          </div>
-          <div class="col">
-            <label for="stepsCount">Steps</label>
-            <input id="stepsCount" type="number" min="0" step="1" placeholder="e.g. 12000" />
-          </div>
-        </div>
-        <label for="stepsNotes">Notes</label>
-        <textarea id="stepsNotes" placeholder="Morning notes…"></textarea>
-        <div class="row mt">
-          <button id="stepsSave" class="btn solid">Save Steps</button>
-          <button id="stepsClear" class="btn">Clear</button>
-        </div>
-        <div class="muted mt" id="stepsTodayBox">—</div>
-        <div class="row mt">
-          <span id="stepsStreak" class="pill">Streak: 0</span>
-          <span id="stepsAvg7" class="pill">7‑day avg: —</span>
-        </div>
-      </section>
-    </section>
+    cell.onclick=function(){
+      var html='';
+      if(rec){
+        html =
+          '<div><b>Date</b>: '+iso+'</div>'+
+          '<div><b>Steps</b>: '+(rec.steps||'—')+'</div>'+
+          '<div class="mt"><b>Notes</b>: '+(rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—')+'</div>'+
+          '<div class="row mt end"><button id="editStepsDayBtn" class="btn solid">Edit this day</button></div>';
+      } else {
+        html =
+          '<div>No steps entry for '+iso+'.</div>'+
+          '<div class="row mt end"><button id="editStepsDayBtn" class="btn solid">Add entry</button></div>';
+      }
 
-    <!-- Steps Trends -->
-    <section class="card tabpanel" id="panel-steps-trends" hidden>
-      <div class="row between">
-        <div class="row">
-          <button class="btn small stepsRangeBtn" data-range="7">Week</button>
-          <button class="btn small stepsRangeBtn" data-range="30">Month</button>
-          <button class="btn small stepsRangeBtn" data-range="365">Year</button>
-        </div>
-        <div class="row">
-          <label for="stepsSmooth" class="muted m0">Smoothing</label>
-          <select id="stepsSmooth">
-            <option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option>
-          </select>
-        </div>
-      </div>
-      <canvas id="stepsChart"></canvas>
-      <div class="muted" id="stepsChartMeta">—</div>
-    </section>
+      openModal('Steps • '+iso, html);
 
-    <!-- Steps Calendar -->
-    <section class="card tabpanel" id="panel-steps-calendar" hidden>
-      <div class="row between">
-        <div class="row">
-          <button id="stepsPrevMonth" class="btn small">‹</button>
-          <button id="stepsTodayMonth" class="btn small">Today</button>
-          <button id="stepsNextMonth" class="btn small">›</button>
-        </div>
-        <div>
-          <div class="title clickable" id="stepsCalTitle" tabindex="0" role="button" aria-label="Choose month">—</div>
-          <div class="muted tiny">Tap the month to choose another</div>
-        </div>
-      </div>
-      <div class="cal-head mt"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
-      <div class="calendar" id="stepsCalendar"></div>
-    </section>
+      var edit=document.getElementById('editStepsDayBtn');
+      if(edit){
+        edit.onclick=function(){
+          activateTab('steps-log');
+          document.getElementById('stepsDate').value=iso;
+          document.getElementById('stepsCount').value=(rec&&rec.steps)||'';
+          document.getElementById('stepsNotes').value=(rec&&rec.notes)||'';
+          document.getElementById('modal').hidden=true;
+        };
+      }
+    };
 
-    <!-- Steps Entries -->
-    <section class="card tabpanel" id="panel-steps-entries" hidden>
-      <h3>Steps Entries</h3>
-      <table id="stepsTable">
-        <thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <div class="muted tiny center mt">Version 2025‑08‑23‑13 • SW v17 • add “?nosw=1” to bypass</div>
-  </main>
-
-  <!-- Hidden native month pickers -->
-  <input type="month" id="monthPicker" hidden />
-  <input type="month" id="stepsMonthPicker" hidden />
-
-  <!-- Modal -->
-  <div id="modal" class="modal" hidden>
-    <div class="modal-card card">
-      <div id="modalTitle" class="title mb">Details</div>
-      <div id="modalBody" class="muted">—</div>
-      <div class="row mt end">
-        <button id="modalClose" class="btn solid">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="app.js?v=13"></script>
-</body>
-</html>
+    box.appendChild(cell);
+  }
+}

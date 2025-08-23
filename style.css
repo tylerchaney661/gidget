@@ -1,4 +1,4 @@
-/* ===================== Tokens ===================== */
+/* ========= Tokens ========= */
 :root{
   --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2;
   --acc:#0EA5E9; --acc-ink:#00131C;
@@ -6,10 +6,9 @@
   --shadow:0 12px 34px rgba(0,0,0,.35);
   --blur:8px; --ease:cubic-bezier(.2,.65,.2,1);
 }
-:root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; }
-:root[data-mode="dark"]{  --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; }
+:root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; }
 
-/* ===================== Base ===================== */
+/* ========= Base ========= */
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;height:100%}
 body{
@@ -17,12 +16,10 @@ body{
   font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
   background:
-    radial-gradient(1200px 800px at 80% -200px, color-mix(in oklab, var(--acc) 14%, transparent), transparent),
+    radial-gradient(1200px 800px at 80% -200px, color-mix(in oklab,var(--acc) 14%, transparent), transparent),
     radial-gradient(800px 600px at -10% -100px, rgba(255,255,255,.05), transparent),
     var(--bg);
 }
-
-/* Text utilities */
 .tiny{font-size:12px}
 .m0{margin:0}
 .mt{margin-top:12px}
@@ -31,9 +28,9 @@ body{
 .end{justify-content:flex-end}
 .between{justify-content:space-between}
 
-/* ===================== Header ===================== */
+/* ========= Header ========= */
 header{
-  position:sticky;top:0;z-index:1000;
+  position:sticky; top:0; z-index:1000;
   background:color-mix(in oklab, var(--bg) 86%, transparent);
   backdrop-filter:blur(var(--blur));
   border-bottom:1px solid var(--line);
@@ -44,21 +41,19 @@ header.hide{transform:translateY(-100%)}
 header.shrink .nav{padding:6px 16px}
 .brand{display:flex;gap:10px;align-items:center}
 .badge{
-  width:30px;height:30px; border-radius:10px;
-  background:linear-gradient(145deg, color-mix(in oklab, var(--acc) 90%, white), var(--acc));
+  width:30px;height:30px;border-radius:10px;
+  background:linear-gradient(145deg, color-mix(in oklab,var(--acc) 90%, white), var(--acc));
   display:grid;place-items:center;color:var(--acc-ink);font-weight:900;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.25),0 8px 18px rgba(0,0,0,.25);
-  transition:width .22s var(--ease),height .22s var(--ease);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.25), 0 8px 18px rgba(0,0,0,.25);
+  transition:width .22s var(--ease), height .22s var(--ease);
 }
 header.shrink .badge{width:24px;height:24px}
 .title{font-weight:800;transition:transform .22s var(--ease), opacity .22s var(--ease)}
 header.shrink .title{transform:translateY(-1px) scale(.98);opacity:.96}
+.muted{color:var(--muted)}
 
-/* ===================== Controls ===================== */
-.btn{
-  appearance:none;border:1px solid var(--line);border-radius:12px;
-  padding:10px 14px;background:transparent;color:var(--fg);font-weight:700;cursor:pointer;
-}
+/* ========= Controls ========= */
+.btn{appearance:none;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:transparent;color:var(--fg);font-weight:700;cursor:pointer}
 .btn.small{padding:8px 10px;font-size:12px}
 .btn.solid{background:var(--acc);border-color:transparent;color:var(--acc-ink);box-shadow:var(--shadow)}
 .btn:focus{outline:none;box-shadow:var(--ring)}
@@ -71,21 +66,15 @@ header.shrink .title{transform:translateY(-1px) scale(.98);opacity:.96}
 .swatch[data-accent="amber"]{background:#f59e0b}
 .swatch[data-accent="rose"]{background:#f43f5e}
 
-/* ===================== Layout ===================== */
+/* ========= Layout ========= */
 main{max-width:1100px;margin:0 auto;padding:16px}
 .grid{display:grid;grid-template-columns:1.4fr .9fr;gap:16px}
 @media(max-width:900px){.grid{grid-template-columns:1fr}}
 
-.card{
-  background:linear-gradient(180deg, color-mix(in oklab, var(--card) 94%, black), var(--card));
-  border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:var(--shadow);
-}
+.card{background:linear-gradient(180deg, color-mix(in oklab,var(--card) 94%, black), var(--card));border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
 
 label{display:block;font-size:13px;color:var(--muted);margin:8px 0 6px}
-input,select,textarea{
-  width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);
-  background:var(--bg);color:var(--fg);transition:border-color .2s,box-shadow .2s;
-}
+input,select,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
 input:focus,select:focus,textarea:focus{outline:none;box-shadow:var(--ring);border-color:transparent}
 textarea{min-height:90px;resize:vertical}
 .row{display:flex;gap:12px;flex-wrap:wrap}
@@ -99,7 +88,7 @@ textarea{min-height:90px;resize:vertical}
 /* Tables */
 table{width:100%;border-collapse:collapse;margin-top:8px;border-radius:12px;overflow:hidden}
 th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
-tr:hover td{background:color-mix(in oklab, var(--bg) 92%, var(--acc) 8%)}
+tr:hover td{background:color-mix(in oklab,var(--bg) 92%, var(--acc) 8%)}
 @media(max-width:700px){table{display:block;overflow-x:auto;white-space:nowrap} th,td{min-width:120px}}
 
 /* Charts */
@@ -110,7 +99,7 @@ canvas{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;b
 .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;color:var(--muted);font-size:12px}
 .cell{min-height:84px;border:1px solid var(--line);border-radius:12px;padding:8px;cursor:pointer;transition:transform .15s,border-color .15s}
-.cell:hover{transform:translateY(-1px);border-color:color-mix(in oklab, var(--acc) 30%, var(--line))}
+.cell:hover{transform:translateY(-1px);border-color:color-mix(in oklab,var(--acc) 30%, var(--line))}
 .cell .d{font-weight:700;font-size:12px;color:var(--muted)}
 .clickable{cursor:pointer;position:relative}
 .clickable::after{content:"▾";font-size:.9em;margin-left:.35em;opacity:.7}
