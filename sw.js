@@ -1,37 +1,87 @@
-/Users/tyler/gidget-site/index.html
+// --- Gidget Service Worker (update-friendly, v11) ---
+const CACHE_STATIC = 'gidget-static-v11';
+const CACHE_HTML   = 'gidget-html-v11';
 
-<script>
-/* TABS (robust delegated handler) */
-document.addEventListener('DOMContentLoaded', ()=>{
-  const tabsBar = document.querySelector('.tabs');
-  if(!tabsBar) return;
-  tabsBar.addEventListener('click', (ev)=>{
-    const tab = ev.target.closest('.tab');
-    if(!tab || !tabsBar.contains(tab)) return;
+const ASSETS = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
+];
 
-    // set active tab
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-    tab.classList.add('active');
-
-    // swap panels
-    const id = tab.getAttribute('data-tab');
-    document.querySelectorAll('.tabpanel').forEach(p=> p.hidden = true);
-    const panel = document.getElementById('panel-'+id);
-    if(panel){
-      panel.hidden = false;
-      panel.classList.add('anim-in');
-      panel.addEventListener('animationend', ()=> panel.classList.remove('anim-in'), {once:true});
-    }
-
-    // lazy renders
-    try{
-      if(id==='trends') drawChart();
-      if(id==='calendar') renderCalendar();
-      if(id==='entries') renderTable(load());
-      if(id==='steps-trends') drawStepsChart();
-      if(id==='steps-calendar') renderStepsCalendar();
-      if(id==='steps-entries') renderStepsTable(loadSteps());
-    }catch(e){ /* ignore to avoid breaking tab clicks */ }
-  });
+// Install: precache static assets and activate immediately
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_STATIC).then((cache) => cache.addAll(ASSETS))
+  );
 });
-</script>
+
+// Activate: remove old caches, take control, and notify pages
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => ![CACHE_STATIC, CACHE_HTML].includes(k))
+          .map((k) => caches.delete(k))
+      );
+      await self.clients.claim();
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clients) {
+        client.postMessage({ type: 'SW_ACTIVATED', version: 'v11' });
+      }
+    })()
+  );
+});
+
+// Fetch:
+// - HTML/navigation => network-first (fresh updates), fallback to cached
+// - Same-origin GET assets => cache-first, fallback to network (then cache)
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+
+  if (req.method !== 'GET') return;
+
+  const isHTML =
+    req.mode === 'navigate' ||
+    (req.headers.get('accept') || '').includes('text/html');
+
+  const sameOrigin = new URL(req.url).origin === self.location.origin;
+  if (!sameOrigin) return;
+
+  if (isHTML) {
+    event.respondWith(
+      (async () => {
+        try {
+          const fresh = await fetch(req, { cache: 'no-store' });
+          const cache = await caches.open(CACHE_HTML);
+          cache.put(req, fresh.clone());
+          return fresh;
+        } catch {
+          const cache = await caches.open(CACHE_HTML);
+          const cached = await cache.match(req) || (await caches.match('./index.html'));
+          return cached || new Response('Offline', { status: 503, statusText: 'Offline' });
+        }
+      })()
+    );
+  } else {
+    event.respondWith(
+      (async () => {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        try {
+          const fresh = await fetch(req);
+          const cache = await caches.open(CACHE_STATIC);
+          cache.put(req, fresh.clone());
+          return fresh;
+        } catch {
+          const fallback = await caches.match('./index.html');
+          return fallback || new Response('Offline', { status: 503, statusText: 'Offline' });
+        }
+      })()
+    );
+  }
+});

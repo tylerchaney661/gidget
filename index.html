@@ -8,7 +8,7 @@
   <!-- PWA + cache-bust -->
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0B0F14" />
-  <meta name="x-gidget-version" content="2025-08-23-3" />
+  <meta name="x-gidget-version" content="2025-08-23-6" />
 
   <style>
     :root{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; --acc:#6EE7B7; --acc-ink:#06291F; --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35); }
@@ -219,101 +219,265 @@
       <h3>Steps Entries</h3>
       <table id="stepsTable"><thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
     </section>
+
+    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-6 • SW ?v=11 • add “?nosw=1” to bypass</div>
   </main>
 
   <div class="toast" id="toast"><div class="inner" id="toastText">Saved</div></div>
 
 <script>
-/* Utils */
+/* ---------- Utils ---------- */
 function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 function toMin(t){ if(!t) return null; const [H,M]=t.split(':').map(Number); return H*60+M } function fromMin(m){ const H=String(Math.floor(m/60)).padStart(2,'0'); const M=String(m%60).padStart(2,'0'); return `${H}:${M}` }
 function toast(msg){ $('#toastText').textContent=msg; $('#toast').classList.add('show'); setTimeout(()=>$('#toast').classList.remove('show'),1400) }
 
-/* THEME */
+/* ---------- Theme ---------- */
 const THEME_MODE_KEY='gidget.theme.mode', THEME_ACCENT_KEY='gidget.theme.accent', ACCENTS={mint:'#6EE7B7',blue:'#0EA5E9',violet:'#8b5cf6',amber:'#f59e0b',rose:'#f43f5e'};
 function applyTheme(mode,accent){ const root=document.documentElement; if(mode==='light'||mode==='dark') root.setAttribute('data-mode',mode); else root.removeAttribute('data-mode'); root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.mint); }
 function initThemeControls(){ const m=localStorage.getItem(THEME_MODE_KEY)||'system', a=localStorage.getItem(THEME_ACCENT_KEY)||'mint'; applyTheme(m,a); $('#themeLight').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'light');applyTheme('light',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $('#themeSystem').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'system');applyTheme('system',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $('#themeDark').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'dark');applyTheme('dark',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $$('#themeControls .swatch').forEach(el=>el.addEventListener('click',()=>{const x=el.getAttribute('data-accent');localStorage.setItem(THEME_ACCENT_KEY,x);applyTheme(localStorage.getItem(THEME_MODE_KEY)||'system',x)})); }
 
-/* STORAGE KEYS */
+/* ---------- Storage Keys ---------- */
 const KEY='gidget_site_v1';           // wake entries
 const STEPS_KEY='gidget_steps_v1';    // steps entries
 
-/* DATA LOAD/SAVE */
+/* ---------- Load/Save ---------- */
 function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]} }
 function save(rows){ localStorage.setItem(KEY, JSON.stringify(rows)) }
 function loadSteps(){ try{return JSON.parse(localStorage.getItem(STEPS_KEY))||[]}catch{return[]} }
 function saveSteps(rows){ localStorage.setItem(STEPS_KEY, JSON.stringify(rows)) }
 
-/* TABS */
-$$('.tab').forEach(tab=> tab.addEventListener('click', ()=>{
-  $$('.tab').forEach(t=>t.classList.remove('active')); tab.classList.add('active');
-  const id=tab.dataset.tab;
-  $$('.tabpanel').forEach(p=>p.hidden=true);
-  const panel=$('#panel-'+id); if(!panel) return; panel.hidden=false; panel.classList.add('anim-in'); panel.addEventListener('animationend',()=>panel.classList.remove('anim-in'),{once:true});
-  if(id==='trends') drawChart(); if(id==='calendar') renderCalendar(); if(id==='entries') renderTable(load());
-  if(id==='steps-trends') drawStepsChart(); if(id==='steps-calendar') renderStepsCalendar(); if(id==='steps-entries') renderStepsTable(loadSteps());
-}));
+/* ---------- Tabs (delegated, robust) ---------- */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const tabsBar = document.querySelector('.tabs');
+  if(tabsBar){
+    tabsBar.addEventListener('click', (ev)=>{
+      const tab = ev.target.closest('.tab');
+      if(!tab || !tabsBar.contains(tab)) return;
 
-/* WAKE FORM + STATS + TABLE + CHART + CALENDAR */
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const id = tab.getAttribute('data-tab');
+      document.querySelectorAll('.tabpanel').forEach(p=> p.hidden = true);
+      const panel = document.getElementById('panel-'+id);
+      if(panel){
+        panel.hidden = false;
+        panel.classList.add('anim-in');
+        panel.addEventListener('animationend', ()=> panel.classList.remove('anim-in'), {once:true});
+      }
+
+      try{
+        if(id==='trends') drawChart();
+        if(id==='calendar') renderCalendar();
+        if(id==='entries') renderTable(load());
+        if(id==='steps-trends') drawStepsChart();
+        if(id==='steps-calendar') renderStepsCalendar();
+        if(id==='steps-entries') renderStepsTable(loadSteps());
+      }catch(e){}
+    });
+  }
+});
+
+/* ---------- Wake: form + stats + table + chart + calendar ---------- */
 const todayISO=ymdLocal(new Date());
-const dateEl=$('#date'), wakeEl=$('#wake'), weightEl=$('#weight'), moodEl=$('#mood'), notesEl=$('#notes'); dateEl.value=todayISO;
-$('#nowBtn').onclick=()=>{ const n=new Date(); wakeEl.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}` }
-$('#save').onclick=()=>{ const row={date:dateEl.value||todayISO,wake:wakeEl.value||'',weight:weightEl.value||'',mood:moodEl.value||'',notes:notesEl.value||''}; const rows=load().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); save(rows); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); toast('Saved') }
-$('#clearForm').onclick=()=>{ dateEl.value=todayISO; wakeEl.value=''; weightEl.value=''; moodEl.value=''; notesEl.value='' }
-$('#applyFilter').onclick=()=> renderTable(load());
-$('#resetFilter').onclick=()=>{ $('#filterFrom').value=''; $('#filterTo').value=''; renderTable(load()) }
+const dateEl=$('#date'), wakeEl=$('#wake'), weightEl=$('#weight'), moodEl=$('#mood'), notesEl=$('#notes');
+document.addEventListener('DOMContentLoaded', ()=>{ if(dateEl) dateEl.value=todayISO; });
+$('#nowBtn')?.addEventListener('click', ()=>{ const n=new Date(); if(wakeEl) wakeEl.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}` });
+
+$('#save')?.addEventListener('click', ()=>{
+  const row={date:dateEl.value||todayISO,wake:wakeEl.value||'',weight:weightEl.value||'',mood:moodEl.value||'',notes:notesEl.value||''};
+  const rows=load().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
+  save(rows); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); toast('Saved');
+});
+$('#clearForm')?.addEventListener('click', ()=>{ if(dateEl) dateEl.value=todayISO; if(wakeEl) wakeEl.value=''; if(weightEl) weightEl.value=''; if(moodEl) moodEl.value=''; if(notesEl) notesEl.value=''; });
+
+$('#applyFilter')?.addEventListener('click', ()=> renderTable(load()));
+$('#resetFilter')?.addEventListener('click', ()=>{ const f1=$('#filterFrom'), f2=$('#filterTo'); if(f1) f1.value=''; if(f2) f2.value=''; renderTable(load()); });
+
 function avg(rows,days){ const cut=new Date(); cut.setDate(cut.getDate()-days+1); const iso=ymdLocal(cut); const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake)); if(!ts.length) return null; return fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)) }
 function renderToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#todayBox').textContent=t?`Today ${t.date}: wake ${t.wake||'—'} · weight ${t.weight||'—'}g · mood ${t.mood||'—'}`:'No entry for today yet.' }
 function renderStats(rows){ let s=0, d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){ s++; d.setDate(d.getDate()-1) } $('#streak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; $('#avg7').textContent=`7‑day avg: ${avg(rows,7)||'—'}` }
-function renderTable(rows){ const tb=$('#table tbody'); if(!tb) return; tb.innerHTML=''; const f1=$('#filterFrom')?.value||'', f2=$('#filterTo')?.value||''; const filtered=rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date)); for(const r of filtered){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-date="${r.date}">Delete</button></td>`; tb.appendChild(tr) } $$('button[data-date]',tb).forEach(b=> b.addEventListener('click', e=>{ const d=e.target.getAttribute('data-date'); const left=load().filter(r=>r.date!==d); save(left); renderTable(left); drawChart(); renderCalendar(); toast('Entry deleted') })) }
-let rangeDays=7; $('#smooth')?.addEventListener('change', drawChart); $$('.rangeBtn').forEach(b=> b.addEventListener('click', ()=>{ rangeDays=+b.dataset.range; drawChart() }));
+
+function renderTable(rows){
+  const tb=$('#table tbody'); if(!tb) return; tb.innerHTML='';
+  const f1=$('#filterFrom')?.value||'', f2=$('#filterTo')?.value||'';
+  const filtered=rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date));
+  for(const r of filtered){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-date="${r.date}">Delete</button></td>`;
+    tb.appendChild(tr);
+  }
+  $$('button[data-date]',tb).forEach(b=> b.addEventListener('click', e=>{
+    const d=e.target.getAttribute('data-date'); const left=load().filter(r=>r.date!==d);
+    save(left); renderTable(left); drawChart(); renderCalendar(); toast('Entry deleted');
+  }));
+}
+
+let rangeDays=7;
+$('#smooth')?.addEventListener('change', drawChart);
+$$('.rangeBtn').forEach(b=> b.addEventListener('click', ()=>{ rangeDays=+b.dataset.range; drawChart() }));
+
 function movingAvg(arr,k){ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1?sum/Math.min(k,i+1):arr[i]) } return out }
-function drawChart(){ const rows=load().filter(r=>r.wake); const canvas=$('#chart'); if(!canvas) return; const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height); const now=new Date(); const start=new Date(); start.setDate(now.getDate()-rangeDays+1); const isoStart=ymdLocal(start); const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d)); $('#chartMeta').textContent=data.length?`${data.length} points`:'No data in range'; const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height; const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line'); const acc=styles.getPropertyValue('--acc'); const muted=styles.getPropertyValue('--muted'); ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke(); function yMap(mins){ let v=mins; if(v<900) v+=1440; const min=900, max=1800; const t=(v-min)/(max-min); return padT+(1-t)*(H-padT-padB) } const ticks=[18*60,21*60,0,3*60]; ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui'; ticks.forEach(t=>{ const y=yMap(t); ctx.fillText(fromMin((t+1440)%1440), padL-6, y); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() }); if(!data.length) return; const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR); ctx.fillStyle=acc; data.forEach((pt,i)=>{ const x=xPos(i), y=yMap(pt.m); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill() }); const k=+($('#smooth')?.value||1); const vals=data.map(d=>{ let v=d.m; if(v<900) v+=1440; return v }); const sm=movingAvg(vals,k); ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath(); sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke() }
+
+function drawChart(){
+  const rows=load().filter(r=>r.wake); const canvas=$('#chart'); if(!canvas) return;
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height);
+  const now=new Date(); const start=new Date(); start.setDate(now.getDate()-rangeDays+1); const isoStart=ymdLocal(start);
+  const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
+  $('#chartMeta').textContent=data.length?`${data.length} points`:'No data in range';
+  const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height;
+  const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line'); const acc=styles.getPropertyValue('--acc'); const muted=styles.getPropertyValue('--muted');
+  ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+  function yMap(mins){ let v=mins; if(v<900) v+=1440; const min=900, max=1800; const t=(v-min)/(max-min); return padT+(1-t)*(H-padT-padB) }
+  const ticks=[18*60,21*60,0,3*60]; ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui';
+  ticks.forEach(t=>{ const y=yMap(t); ctx.fillText(fromMin((t+1440)%1440), padL-6, y); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() });
+  if(!data.length) return;
+  const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
+  ctx.fillStyle=acc; data.forEach((pt,i)=>{ const x=xPos(i), y=yMap(pt.m); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill() });
+  const k=+($('#smooth')?.value||1);
+  const vals=data.map(d=>{ let v=d.m; if(v<900) v+=1440; return v });
+  const sm=movingAvg(vals,k);
+  ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath();
+  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke();
+}
+
 let calRef=new Date();
-function renderCalendar(){ const rows=load(); const box=$('#calendar'); if(!box) return; box.innerHTML=''; const y=calRef.getFullYear(), m=calRef.getMonth(); $('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long', year:'numeric'}); const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day); for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45; const dISO=ymdLocal(d); const rec=rows.find(r=>r.date===dISO); cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.wake||'—'}</div>`; cell.addEventListener('click',()=>{ $('#date').value=dISO; $('#wake').value=rec?.wake||''; $('#weight').value=rec?.weight||''; $('#mood').value=rec?.mood||''; $('#notes').value=rec?.notes||''; $$('.tab').forEach(t=>t.classList.remove('active')); $('[data-tab="log"]').classList.add('active'); $$('.tabpanel').forEach(p=>p.hidden=true); const pl=$('#panel-log'); pl.hidden=false; pl.classList.add('anim-in'); pl.addEventListener('animationend',()=>pl.classList.remove('anim-in'),{once:true}); }); box.appendChild(cell) } }
+function renderCalendar(){
+  const rows=load(); const box=$('#calendar'); if(!box) return; box.innerHTML='';
+  const y=calRef.getFullYear(), m=calRef.getMonth();
+  $('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long', year:'numeric'});
+  const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day);
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
+    const dISO=ymdLocal(d); const rec=rows.find(r=>r.date===dISO);
+    cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.wake||'—'}</div>`;
+    cell.addEventListener('click',()=>{ $('#date').value=dISO; $('#wake').value=rec?.wake||''; $('#weight').value=rec?.weight||''; $('#mood').value=rec?.mood||''; $('#notes').value=rec?.notes||''; document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelector('[data-tab="log"]').classList.add('active'); document.querySelectorAll('.tabpanel').forEach(p=>p.hidden=true); const pl=$('#panel-log'); pl.hidden=false; pl.classList.add('anim-in'); pl.addEventListener('animationend',()=>pl.classList.remove('anim-in'),{once:true}); });
+    box.appendChild(cell);
+  }
+}
 $('#prevMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()-1); renderCalendar() })
 $('#nextMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderCalendar() })
 $('#todayMonth')?.addEventListener('click', ()=>{ calRef=new Date(); renderCalendar() })
 
-/* CSV (wake + steps in one CSV for now) */
-$('#exportCsv').onclick=()=>{ const rows=load(); const steps=loadSteps(); const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n'; const wakeLines=rows.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(',')); const stepLines=steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(',')); const csv=header+[...wakeLines,...stepLines].join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click() }
-$('#importCsv').addEventListener('change', async (e)=>{ const file=e.target.files[0]; if(!file) return; const text=await file.text(); const lines=text.trim().split(/\r?\n/); const header=lines.shift()?.split(',')||[]; const typeIdx=header.indexOf('Type'); const outWake=[], outSteps=[]; for(const ln of lines){ const p=ln.split(','); const type=(typeIdx>=0?p[typeIdx]:'wake'); if(type==='steps'){ outSteps.push({date:p[1], steps:p[6]||'', notes:p[5]||''}); } else { outWake.push({date:p[1], wake:p[2]||'', weight:p[3]||'', mood:p[4]||'', notes:p[5]||''}); } } save(outWake); saveSteps(outSteps); renderToday(outWake); renderStats(outWake); renderTable(outWake); drawChart(); renderCalendar(); renderStepsToday(outSteps); renderStepsStats(outSteps); renderStepsTable(outSteps); drawStepsChart(); renderStepsCalendar(); toast('Imported CSV') })
+/* ---------- CSV (combined wake + steps) ---------- */
+$('#exportCsv')?.addEventListener('click', ()=>{
+  const rows=load(), steps=loadSteps();
+  const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
+  const wakeLines=rows.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(','));
+  const stepLines=steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(','));
+  const csv=header+[...wakeLines,...stepLines].join('\n');
+  const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
+});
+$('#importCsv')?.addEventListener('change', async (e)=>{
+  const file=e.target.files[0]; if(!file) return; const text=await file.text();
+  const lines=text.trim().split(/\r?\n/); const header=lines.shift()?.split(',')||[]; const typeIdx=header.indexOf('Type');
+  const outWake=[], outSteps=[];
+  for(const ln of lines){ const p=ln.split(','); const type=(typeIdx>=0?p[typeIdx]:'wake');
+    if(type==='steps'){ outSteps.push({date:p[1], steps:p[6]||'', notes:p[5]||''}); }
+    else { outWake.push({date:p[1], wake:p[2]||'', weight:p[3]||'', mood:p[4]||'', notes:p[5]||''}); }
+  }
+  save(outWake); saveSteps(outSteps);
+  renderToday(outWake); renderStats(outWake); renderTable(outWake); drawChart(); renderCalendar();
+  renderStepsToday(outSteps); renderStepsStats(outSteps); renderStepsTable(outSteps); drawStepsChart(); renderStepsCalendar();
+  toast('Imported CSV');
+});
 
-/* Reset all data */
-$('#resetData')?.addEventListener('click', ()=>{ if(confirm('Reset all Gidget entries (wake + steps) on this device? This cannot be undone.')){ localStorage.removeItem(KEY); localStorage.removeItem(STEPS_KEY); const rows=[], steps=[]; renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); renderStepsToday(steps); renderStepsStats(steps); renderStepsTable(steps); drawStepsChart(); renderStepsCalendar(); toast('All data cleared'); }});
+/* ---------- Reset ---------- */
+$('#resetData')?.addEventListener('click', ()=>{
+  if(confirm('Reset all Gidget entries (wake + steps) on this device? This cannot be undone.')){
+    localStorage.removeItem(KEY); localStorage.removeItem(STEPS_KEY);
+    const rows=[], steps=[]; renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar();
+    renderStepsToday(steps); renderStepsStats(steps); renderStepsTable(steps); drawStepsChart(); renderStepsCalendar();
+    toast('All data cleared');
+  }
+});
 
-/* STEPS: form + stats + table + chart + calendar */
+/* ---------- Steps: form + stats + table + chart + calendar ---------- */
 const stepsDateEl=$('#stepsDate'), stepsCountEl=$('#stepsCount'), stepsNotesEl=$('#stepsNotes');
 function stepsTodayISO(){ return ymdLocal(new Date()); }
-$('#stepsSave').onclick=()=>{ const row={date:stepsDateEl.value||stepsTodayISO(), steps: stepsCountEl.value||'', notes: stepsNotesEl.value||''}; const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); saveSteps(rows); renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); drawStepsChart(); renderStepsCalendar(); toast('Steps saved') }
-$('#stepsClear').onclick=()=>{ stepsDateEl.value=stepsTodayISO(); stepsCountEl.value=''; stepsNotesEl.value='' }
+document.addEventListener('DOMContentLoaded', ()=>{ if(stepsDateEl) stepsDateEl.value=stepsTodayISO(); });
+
+$('#stepsSave')?.addEventListener('click', ()=>{
+  const row={date:stepsDateEl.value||stepsTodayISO(), steps: stepsCountEl.value||'', notes: stepsNotesEl.value||''};
+  const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
+  saveSteps(rows); renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); drawStepsChart(); renderStepsCalendar(); toast('Steps saved');
+});
+$('#stepsClear')?.addEventListener('click', ()=>{ if(stepsDateEl) stepsDateEl.value=stepsTodayISO(); if(stepsCountEl) stepsCountEl.value=''; if(stepsNotesEl) stepsNotesEl.value=''; });
+
 function renderStepsToday(rows){ const t=rows.find(r=>r.date===stepsTodayISO()); $('#stepsTodayBox').textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.' }
 function renderStepsStats(rows){ let s=0, d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){ s++; d.setDate(d.getDate()-1) } $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymdLocal(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); const avg=vals.length? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null; $('#stepsAvg7').textContent=`7‑day avg: ${avg??'—'}` }
 function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML=''; const filtered=[...rows].sort((a,b)=>b.date.localeCompare(a.date)); for(const r of filtered){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-sdate="${r.date}">Delete</button></td>`; tb.appendChild(tr) } $$('button[data-sdate]',tb).forEach(b=> b.addEventListener('click', e=>{ const d=e.target.getAttribute('data-sdate'); const left=loadSteps().filter(r=>r.date!==d); saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); toast('Steps entry deleted') })) }
-let stepsRange=7; $('#stepsSmooth')?.addEventListener('change', drawStepsChart); $$('.stepsRangeBtn').forEach(b=> b.addEventListener('click', ()=>{ stepsRange=+b.dataset.range; drawStepsChart() }));
-function drawStepsChart(){ const rows=loadSteps().filter(r=>r.steps); const canvas=$('#stepsChart'); if(!canvas) return; const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height); const now=new Date(); const start=new Date(); start.setDate(now.getDate()-stepsRange+1); const isoStart=ymdLocal(start); const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date, v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d)); $('#stepsChartMeta').textContent=data.length?`${data.length} points`:'No data in range'; const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height; const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line'); const acc=styles.getPropertyValue('--acc'); const muted=styles.getPropertyValue('--muted'); ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke(); // y-scale\n  if(!data.length) return; const vals=data.map(p=>p.v); const min=Math.min(...vals), max=Math.max(...vals), yMin=Math.max(0, Math.floor(min*0.95)), yMax=Math.ceil(max*1.05)||1; ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui'; const yTicks=5; for(let i=0;i<=yTicks;i++){ const t=i/yTicks; const y=padT+(1-t)*(H-padT-padB); const val=Math.round(yMin + t*(yMax-yMin)); ctx.fillText(val, padL-6, y); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() } const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR); const k=+($('#stepsSmooth')?.value||1); const moving=(arr,k)=>{ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1? sum/Math.min(k,i+1):arr[i]) } return out }; const sm=moving(vals,k); ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath(); sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke(); ctx.fillStyle=acc; sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill() }) }
+
+let stepsRange=7;
+$('#stepsSmooth')?.addEventListener('change', drawStepsChart);
+$$('.stepsRangeBtn').forEach(b=> b.addEventListener('click', ()=>{ stepsRange=+b.dataset.range; drawStepsChart() }));
+
+function drawStepsChart(){
+  const rows=loadSteps().filter(r=>r.steps); const canvas=$('#stepsChart'); if(!canvas) return;
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height);
+  const now=new Date(); const start=new Date(); start.setDate(now.getDate()-stepsRange+1); const isoStart=ymdLocal(start);
+  const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date, v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
+  $('#stepsChartMeta').textContent=data.length?`${data.length} points`:'No data in range';
+  const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height;
+  const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line'); const acc=styles.getPropertyValue('--acc'); const muted=styles.getPropertyValue('--muted');
+  ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+  if(!data.length) return;
+  const vals=data.map(p=>p.v); const yMin=Math.max(0, Math.floor(Math.min(...vals)*0.95)); const yMax=Math.ceil(Math.max(...vals)*1.05)||1;
+  ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui';
+  const yTicks=5; for(let i=0;i<=yTicks;i++){ const t=i/yTicks; const y=padT+(1-t)*(H-padT-padB); const val=Math.round(yMin + t*(yMax-yMin)); ctx.fillText(val, padL-6, y); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() }
+  const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
+  const k=+($('#stepsSmooth')?.value||1);
+  const moving=(arr,k)=>{ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1? sum/Math.min(k,i+1):arr[i]) } return out };
+  const sm=moving(vals,k);
+  ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath(); sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke();
+  ctx.fillStyle=acc; sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill() });
+}
+
 let stepsCalRef=new Date();
-function renderStepsCalendar(){ const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return; box.innerHTML=''; const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth(); $('#stepsCalTitle').textContent=stepsCalRef.toLocaleString(undefined,{month:'long', year:'numeric'}); const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day); for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45; const dISO=ymdLocal(d); const rec=rows.find(r=>r.date===dISO); cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.steps||'—'}</div>`; cell.addEventListener('click',()=>{ $('#stepsDate').value=dISO; $('#stepsCount').value=rec?.steps||''; $('#stepsNotes').value=rec?.notes||''; $$('.tab').forEach(t=>t.classList.remove('active')); $('[data-tab="steps-log"]').classList.add('active'); $$('.tabpanel').forEach(p=>p.hidden=true); const pl=$('#panel-steps-log'); pl.hidden=false; pl.classList.add('anim-in'); pl.addEventListener('animationend',()=>pl.classList.remove('anim-in'),{once:true}); }); box.appendChild(cell) } }
+function renderStepsCalendar(){
+  const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return; box.innerHTML='';
+  const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth();
+  $('#stepsCalTitle').textContent=stepsCalRef.toLocaleString(undefined,{month:'long', year:'numeric'});
+  const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day);
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i);
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
+    const dISO=ymdLocal(d); const rec=rows.find(r=>r.date===dISO);
+    cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.steps||'—'}</div>`;
+    cell.addEventListener('click',()=>{ $('#stepsDate').value=dISO; $('#stepsCount').value=rec?.steps||''; $('#stepsNotes').value=rec?.notes||''; document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelector('[data-tab="steps-log"]').classList.add('active'); document.querySelectorAll('.tabpanel').forEach(p=>p.hidden=true); const pl=$('#panel-steps-log'); pl.hidden=false; pl.classList.add('anim-in'); pl.addEventListener('animationend',()=>pl.classList.remove('anim-in'),{once:true}); });
+    box.appendChild(cell);
+  }
+}
 $('#stepsPrevMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()-1); renderStepsCalendar() })
 $('#stepsNextMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar() })
 $('#stepsTodayMonth')?.addEventListener('click', ()=>{ stepsCalRef=new Date(); renderStepsCalendar() })
 
-/* BOOT */
-document.addEventListener('DOMContentLoaded', ()=>{ initThemeControls(); stepsDateEl.value=stepsTodayISO(); const rows=load(); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); const srows=loadSteps(); renderStepsToday(srows); renderStepsStats(srows); renderStepsTable(srows); drawStepsChart(); renderStepsCalendar(); });
+/* ---------- Boot ---------- */
+document.addEventListener('DOMContentLoaded', ()=>{
+  initThemeControls();
+  if(stepsDateEl) stepsDateEl.value=stepsTodayISO();
+  const rows=load(); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar();
+  const srows=loadSteps(); renderStepsToday(srows); renderStepsStats(srows); renderStepsTable(srows); drawStepsChart(); renderStepsCalendar();
+});
 
-/* SW registration with version param & auto-update */
+/* ---------- SW registration with version param, bypass, auto-update ---------- */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    try { const reg = await navigator.serviceWorker.register('./sw.js?v=9'); await reg.update(); } catch (e) {}
-  });
-  navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'SW_ACTIVATED') location.reload(); });
-  document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible') { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } });
-  let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
+  const qs = new URL(location.href).searchParams;
+  const bypass = qs.has('nosw') || qs.get('nosw') === '1';
+  if (!bypass) {
+    window.addEventListener('load', async () => {
+      try { const reg = await navigator.serviceWorker.register('./sw.js?v=11'); await reg.update(); } catch (e) {}
+    });
+    navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'SW_ACTIVATED') location.reload(); });
+    document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible') { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } });
+    let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
+  }
 }
 
-/* Install help */
-$('#installInfo').onclick=()=> alert('On iPhone: open this URL in Safari → Share → Add to Home Screen.');
+/* ---------- Install help ---------- */
+$('#installInfo')?.addEventListener('click', ()=> alert('On iPhone: open this URL in Safari → Share → Add to Home Screen.'));
 </script>
 </body>
 </html>
