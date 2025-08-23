@@ -1,6 +1,6 @@
 // --- Gidget Service Worker (update-friendly) ---
-const CACHE_STATIC = 'gidget-static-v5';
-const CACHE_HTML   = 'gidget-html-v5';
+const CACHE_STATIC = 'gidget-static-v6';
+const CACHE_HTML   = 'gidget-html-v6';
 
 const ASSETS = [
   './',
