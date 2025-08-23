@@ -8,7 +8,7 @@
   <!-- PWA + cache-bust -->
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0B0F14" />
-  <meta name="x-gidget-version" content="2025-08-23-6" />
+  <meta name="x-gidget-version" content="2025-08-23-7" />
 
   <style>
     :root{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; --acc:#6EE7B7; --acc-ink:#06291F; --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35); }
@@ -44,14 +44,14 @@
     canvas{ width:100%; height:260px; border:1px solid var(--line); border-radius:12px; background:var(--bg) }
     .calendar{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px }
     .cal-head{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; color:var(--muted); font-size:12px }
-    .cell{ min-height:84px; border:1px solid var(--line); border-radius:12px; padding:8px }
+    .cell{ min-height:84px; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer }
     .cell .d{ font-weight:700; font-size:12px; color:var(--muted) }
     .pill{ display:inline-block; padding:6px 10px; border-radius:9999px; border:1px solid var(--line); font-size:12px; color:var(--muted) }
     .toast{ position:fixed; inset:auto 16px 16px 16px; display:none }
     .toast .inner{ background:var(--card); border:1px solid var(--line); padding:12px 14px; border-radius:14px; box-shadow:var(--shadow) }
     .toast.show{ display:block }
 
-    /* ==== THEME + ACCENT + ANIMATIONS ==== */
+    /* Animations + theme */
     :root { transition: background-color .25s ease, color .25s ease; }
     :root[data-mode="dark"]{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; }
     :root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; }
@@ -61,6 +61,12 @@
     .tabpanel{ opacity:1; transform: translateY(0); }
     .anim-in{ animation: fadeSlide .28s ease both; }
     @keyframes fadeSlide{ from{ opacity:.0; transform: translateY(6px) } to{ opacity:1; transform: translateY(0) } }
+
+    /* ---- Mobile tables: scroll instead of squeezing ---- */
+    @media (max-width: 700px){
+      table{ display:block; overflow-x:auto; white-space:nowrap; }
+      th,td{ min-width:120px; }
+    }
   </style>
 </head>
 <body>
@@ -169,6 +175,7 @@
     <!-- Wake Entries -->
     <section class="card tabpanel" id="panel-entries" hidden>
       <h3>Entries</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">Tip: swipe horizontally if the table is wider than your screen</div>
       <table id="table"><thead><tr><th>Date</th><th>Wake‑Up</th><th>Weight</th><th>Mood</th><th>Food</th><th>Sand</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
     </section>
 
@@ -217,13 +224,27 @@
     <!-- Steps Entries -->
     <section class="card tabpanel" id="panel-steps-entries" hidden>
       <h3>Steps Entries</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">Tip: swipe horizontally if the table is wider than your screen</div>
       <table id="stepsTable"><thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
     </section>
 
-    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-6 • SW ?v=11 • add “?nosw=1” to bypass</div>
+    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-7 • SW ?v=12 • add “?nosw=1” to bypass</div>
   </main>
 
   <div class="toast" id="toast"><div class="inner" id="toastText">Saved</div></div>
+
+  <!-- Modal -->
+  <div id="modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:40">
+    <div id="modalCard" class="card" style="max-width:520px;width:92%;transform:translateY(6px);opacity:0">
+      <div id="modalTitle" class="title" style="margin-bottom:8px">Details</div>
+      <div id="modalBody" class="muted">—</div>
+      <div class="row" style="margin-top:14px;justify-content:flex-end">
+        <button id="modalDelete" class="btn secondary">Delete</button>
+        <button id="modalEdit" class="btn">Edit</button>
+        <button id="modalClose" class="btn secondary">Close</button>
+      </div>
+    </div>
+  </div>
 
 <script>
 /* ---------- Utils ---------- */
@@ -231,6 +252,25 @@ function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart
 const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 function toMin(t){ if(!t) return null; const [H,M]=t.split(':').map(Number); return H*60+M } function fromMin(m){ const H=String(Math.floor(m/60)).padStart(2,'0'); const M=String(m%60).padStart(2,'0'); return `${H}:${M}` }
 function toast(msg){ $('#toastText').textContent=msg; $('#toast').classList.add('show'); setTimeout(()=>$('#toast').classList.remove('show'),1400) }
+
+/* ----- Modal helpers ----- */
+function openModal({title, html, onEdit, onDelete}){
+  const overlay = $('#modal'), card = $('#modalCard');
+  $('#modalTitle').textContent = title;
+  $('#modalBody').innerHTML = html;
+  overlay.style.display = 'flex';
+  requestAnimationFrame(()=>{ card.style.transition='all .22s ease'; card.style.transform='translateY(0)'; card.style.opacity='1'; });
+  $('#modalClose').onclick = closeModal;
+  $('#modalEdit').onclick = ()=>{ closeModal(); onEdit?.(); };
+  $('#modalDelete').onclick = ()=>{ if(confirm('Delete this entry?')){ onDelete?.(); closeModal(); } };
+  overlay.onclick = (e)=>{ if(e.target===overlay) closeModal(); };
+  document.onkeydown = (e)=>{ if(e.key==='Escape') closeModal(); };
+}
+function closeModal(){
+  const overlay = $('#modal'), card = $('#modalCard');
+  card.style.transform='translateY(6px)'; card.style.opacity='0';
+  setTimeout(()=>{ overlay.style.display='none'; document.onkeydown=null; }, 180);
+}
 
 /* ---------- Theme ---------- */
 const THEME_MODE_KEY='gidget.theme.mode', THEME_ACCENT_KEY='gidget.theme.accent', ACCENTS={mint:'#6EE7B7',blue:'#0EA5E9',violet:'#8b5cf6',amber:'#f59e0b',rose:'#f43f5e'};
@@ -320,28 +360,96 @@ $$('.rangeBtn').forEach(b=> b.addEventListener('click', ()=>{ rangeDays=+b.datas
 
 function movingAvg(arr,k){ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1?sum/Math.min(k,i+1):arr[i]) } return out }
 
+/* Wake chart with hit targets */
+let wakePts = [];
 function drawChart(){
-  const rows=load().filter(r=>r.wake); const canvas=$('#chart'); if(!canvas) return;
+  const rows=load().filter(r=>r.wake);
+  const canvas=$('#chart'); if(!canvas) return;
   const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height);
-  const now=new Date(); const start=new Date(); start.setDate(now.getDate()-rangeDays+1); const isoStart=ymdLocal(start);
+  wakePts = [];
+
+  const now=new Date();
+  const start=new Date(); start.setDate(now.getDate()-rangeDays+1);
+  const isoStart=ymdLocal(start);
   const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
   $('#chartMeta').textContent=data.length?`${data.length} points`:'No data in range';
+
   const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height;
-  const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line'); const acc=styles.getPropertyValue('--acc'); const muted=styles.getPropertyValue('--muted');
-  ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+  const styles=getComputedStyle(document.body);
+  const line=styles.getPropertyValue('--line'), acc=styles.getPropertyValue('--acc'), muted=styles.getPropertyValue('--muted');
+
+  ctx.strokeStyle=line; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+
   function yMap(mins){ let v=mins; if(v<900) v+=1440; const min=900, max=1800; const t=(v-min)/(max-min); return padT+(1-t)*(H-padT-padB) }
-  const ticks=[18*60,21*60,0,3*60]; ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui';
-  ticks.forEach(t=>{ const y=yMap(t); ctx.fillText(fromMin((t+1440)%1440), padL-6, y); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() });
+  const ticks=[18*60,21*60,0,3*60];
+  ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui';
+  ticks.forEach(t=>{ const y=yMap(t); ctx.fillText(fromMin((t+1440)%1440), padL-6, y); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() });
+
   if(!data.length) return;
+
   const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  ctx.fillStyle=acc; data.forEach((pt,i)=>{ const x=xPos(i), y=yMap(pt.m); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill() });
+
+  ctx.fillStyle=acc;
+  data.forEach((pt,i)=>{
+    const x=xPos(i), y=yMap(pt.m);
+    wakePts.push({x,y,date:pt.d});
+    ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill();
+  });
+
   const k=+($('#smooth')?.value||1);
   const vals=data.map(d=>{ let v=d.m; if(v<900) v+=1440; return v });
   const sm=movingAvg(vals,k);
   ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath();
-  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke();
+  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) });
+  ctx.stroke();
 }
 
+/* Bind click/touch for wake chart */
+(function bindWakeClicks(){
+  const canvas = $('#chart'); if(!canvas) return;
+  const getXY = (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+    const cx = (e.touches? e.touches[0].clientX : e.clientX) - rect.left;
+    const cy = (e.touches? e.touches[0].clientY : e.clientY) - rect.top;
+    return {x: cx*sx, y: cy*sy};
+  };
+  const handle = (e)=>{
+    if(!wakePts.length) return;
+    const {x,y} = getXY(e);
+    let best=null, bestD=1e12;
+    for(const p of wakePts){ const dx=x-p.x, dy=y-p.y; const d=dx*dx+dy*dy; if(d<bestD){ best=p; bestD=d; } }
+    if(best && bestD <= 12*12){
+      const rows = load(); const r = rows.find(z=>z.date===best.date) || {};
+      openModal({
+        title: `Wake • ${best.date}`,
+        html: `
+          <div><b>Wake</b>: ${r.wake||'—'}</div>
+          <div><b>Weight</b>: ${r.weight||'—'} g</div>
+          <div><b>Mood</b>: ${r.mood||'—'}</div>
+          <div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>
+        `,
+        onEdit: ()=>{ 
+          document.querySelector('[data-tab="log"]').click();
+          $('#date').value = best.date;
+          $('#wake').value = r.wake||'';
+          $('#weight').value = r.weight||'';
+          $('#mood').value = r.mood||'';
+          $('#notes').value = r.notes||'';
+        },
+        onDelete: ()=>{
+          const left = load().filter(z=>z.date!==best.date);
+          save(left); renderTable(left); drawChart(); renderCalendar(); renderStats(left); toast('Entry deleted');
+        }
+      });
+    }
+  };
+  canvas.addEventListener('click', handle);
+  canvas.addEventListener('touchstart', handle, {passive:true});
+})();
+
+/* Calendar */
 let calRef=new Date();
 function renderCalendar(){
   const rows=load(); const box=$('#calendar'); if(!box) return; box.innerHTML='';
@@ -410,31 +518,101 @@ function renderStepsToday(rows){ const t=rows.find(r=>r.date===stepsTodayISO());
 function renderStepsStats(rows){ let s=0, d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){ s++; d.setDate(d.getDate()-1) } $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymdLocal(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); const avg=vals.length? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null; $('#stepsAvg7').textContent=`7‑day avg: ${avg??'—'}` }
 function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML=''; const filtered=[...rows].sort((a,b)=>b.date.localeCompare(a.date)); for(const r of filtered){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-sdate="${r.date}">Delete</button></td>`; tb.appendChild(tr) } $$('button[data-sdate]',tb).forEach(b=> b.addEventListener('click', e=>{ const d=e.target.getAttribute('data-sdate'); const left=loadSteps().filter(r=>r.date!==d); saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); toast('Steps entry deleted') })) }
 
-let stepsRange=7;
+/* Steps chart with hit targets */
+let stepsRange=7, stepsPts = [];
 $('#stepsSmooth')?.addEventListener('change', drawStepsChart);
 $$('.stepsRangeBtn').forEach(b=> b.addEventListener('click', ()=>{ stepsRange=+b.dataset.range; drawStepsChart() }));
 
 function drawStepsChart(){
-  const rows=loadSteps().filter(r=>r.steps); const canvas=$('#stepsChart'); if(!canvas) return;
+  const rows=loadSteps().filter(r=>r.steps);
+  const canvas=$('#stepsChart'); if(!canvas) return;
   const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height);
+  stepsPts = [];
+
   const now=new Date(); const start=new Date(); start.setDate(now.getDate()-stepsRange+1); const isoStart=ymdLocal(start);
   const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date, v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
   $('#stepsChartMeta').textContent=data.length?`${data.length} points`:'No data in range';
+
   const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height;
   const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line'); const acc=styles.getPropertyValue('--acc'); const muted=styles.getPropertyValue('--muted');
-  ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+
+  ctx.strokeStyle=line; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+
   if(!data.length) return;
-  const vals=data.map(p=>p.v); const yMin=Math.max(0, Math.floor(Math.min(...vals)*0.95)); const yMax=Math.ceil(Math.max(...vals)*1.05)||1;
+
+  const vals=data.map(p=>p.v);
+  const yMin=Math.max(0, Math.floor(Math.min(...vals)*0.95));
+  const yMax=Math.ceil(Math.max(...vals)*1.05)||1;
+
   ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui';
-  const yTicks=5; for(let i=0;i<=yTicks;i++){ const t=i/yTicks; const y=padT+(1-t)*(H-padT-padB); const val=Math.round(yMin + t*(yMax-yMin)); ctx.fillText(val, padL-6, y); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() }
+  const yTicks=5;
+  for(let i=0;i<=yTicks;i++){
+    const t=i/yTicks; const y=padT+(1-t)*(H-padT-padB);
+    const val=Math.round(yMin + t*(yMax-yMin));
+    ctx.fillText(val, padL-6, y);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+  }
+
   const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
+
   const k=+($('#stepsSmooth')?.value||1);
   const moving=(arr,k)=>{ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1? sum/Math.min(k,i+1):arr[i]) } return out };
   const sm=moving(vals,k);
-  ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath(); sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke();
-  ctx.fillStyle=acc; sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill() });
+
+  ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath();
+  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) });
+  ctx.stroke();
+
+  ctx.fillStyle=acc;
+  data.forEach((p,i)=>{
+    const x=xPos(i); const y=padT + (1-((p.v-yMin)/(yMax-yMin)))*(H-padT-padB);
+    stepsPts.push({x,y,date:p.d});
+    ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill();
+  });
 }
 
+/* Bind click/touch for steps chart */
+(function bindStepsClicks(){
+  const canvas = $('#stepsChart'); if(!canvas) return;
+  const getXY = (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+    const cx = (e.touches? e.touches[0].clientX : e.clientX) - rect.left;
+    const cy = (e.touches? e.touches[0].clientY : e.clientY) - rect.top;
+    return {x: cx*sx, y: cy*sy};
+  };
+  const handle = (e)=>{
+    if(!stepsPts.length) return;
+    const {x,y} = getXY(e);
+    let best=null, bestD=1e12;
+    for(const p of stepsPts){ const dx=x-p.x, dy=y-p.y; const d=dx*dx+dy*dy; if(d<bestD){ best=p; bestD=d; } }
+    if(best && bestD <= 12*12){
+      const rows = loadSteps(); const r = rows.find(z=>z.date===best.date) || {};
+      openModal({
+        title: `Steps • ${best.date}`,
+        html: `
+          <div><b>Steps</b>: ${r.steps||'—'}</div>
+          <div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>
+        `,
+        onEdit: ()=>{
+          document.querySelector('[data-tab="steps-log"]').click();
+          $('#stepsDate').value = best.date;
+          $('#stepsCount').value = r.steps||'';
+          $('#stepsNotes').value = r.notes||'';
+        },
+        onDelete: ()=>{
+          const left = loadSteps().filter(z=>z.date!==best.date);
+          saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); renderStepsStats(left); toast('Steps entry deleted');
+        }
+      });
+    }
+  };
+  canvas.addEventListener('click', handle);
+  canvas.addEventListener('touchstart', handle, {passive:true});
+})();
+
+/* Steps calendar */
 let stepsCalRef=new Date();
 function renderStepsCalendar(){
   const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return; box.innerHTML='';
@@ -468,7 +646,7 @@ if ('serviceWorker' in navigator) {
   const bypass = qs.has('nosw') || qs.get('nosw') === '1';
   if (!bypass) {
     window.addEventListener('load', async () => {
-      try { const reg = await navigator.serviceWorker.register('./sw.js?v=11'); await reg.update(); } catch (e) {}
+      try { const reg = await navigator.serviceWorker.register('./sw.js?v=12'); await reg.update(); } catch (e) {}
     });
     navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'SW_ACTIVATED') location.reload(); });
     document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible') { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } });

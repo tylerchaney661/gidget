@@ -1,6 +1,6 @@
-// --- Gidget Service Worker (update-friendly, v11) ---
-const CACHE_STATIC = 'gidget-static-v11';
-const CACHE_HTML   = 'gidget-html-v11';
+// --- Gidget Service Worker (update-friendly, v12) ---
+const CACHE_STATIC = 'gidget-static-v12';
+const CACHE_HTML   = 'gidget-html-v12';
 
 const ASSETS = [
   './',
@@ -31,7 +31,7 @@ self.addEventListener('activate', (event) => {
       await self.clients.claim();
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clients) {
-        client.postMessage({ type: 'SW_ACTIVATED', version: 'v11' });
+        client.postMessage({ type: 'SW_ACTIVATED', version: 'v12' });
       }
     })()
   );
