@@ -5,67 +5,148 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gidget · Hamster Tracker</title>
 
-  <!-- PWA + cache-bust -->
+  <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0B0F14" />
-  <meta name="x-gidget-version" content="2025-08-23-7" />
+  <meta name="x-gidget-version" content="2025-08-23-8" />
 
   <style>
-    :root{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; --acc:#6EE7B7; --acc-ink:#06291F; --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35); }
-    @media (prefers-color-scheme: light){
-      :root{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; --acc:#0EA5E9; --acc-ink:#00131C; --shadow:0 10px 30px rgba(0,0,0,.08); --ring:0 0 0 2px rgba(14,165,233,.25); }
+    /* ====== DESIGN TOKENS ====== */
+    :root{
+      --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2;
+      --acc:#6EE7B7; --acc-ink:#06291F;
+      --radius:14px; --shadow:0 12px 34px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35);
+      --blur:8px;
+      --ease: cubic-bezier(.2,.65,.2,1);
     }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; --acc:#0EA5E9; --acc-ink:#00131C; --shadow:0 12px 34px rgba(0,0,0,.08); --ring:0 0 0 2px rgba(14,165,233,.25);}
+    }
+
+    /* ====== GLOBAL ====== */
     *{box-sizing:border-box}
-    body{ margin:0; background:radial-gradient(1200px 800px at 80% -200px, rgba(110,231,183,.08), transparent), var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
-    header{ position:sticky; top:0; z-index:5; backdrop-filter: blur(8px); background: color-mix(in oklab, var(--bg) 88%, transparent); border-bottom:1px solid var(--line) }
+    html{ scroll-behavior:smooth }
+    body{
+      margin:0;
+      color:var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+      background:
+        radial-gradient(1200px 800px at 80% -200px, color-mix(in oklab, var(--acc) 20%, transparent), transparent),
+        radial-gradient(800px 600px at -10% -100px, rgba(255,255,255,.05), transparent),
+        var(--bg);
+      animation: bodyFade .35s var(--ease) both;
+    }
+    @keyframes bodyFade{ from{ opacity:.0; transform:translateY(4px)} to{ opacity:1; transform:none} }
+
+    header{
+      position:sticky; top:0; z-index:50;
+      backdrop-filter: blur(var(--blur));
+      background: color-mix(in oklab, var(--bg) 86%, transparent);
+      border-bottom:1px solid var(--line);
+      transition: background .3s var(--ease), backdrop-filter .3s var(--ease);
+    }
     .nav{ max-width:1100px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; justify-content:space-between }
     .brand{ display:flex; gap:10px; align-items:center }
-    .badge{ width:28px; height:28px; border-radius:8px; background:var(--acc); display:grid; place-items:center; color:var(--acc-ink); font-weight:800 }
+    .badge{
+      width:30px; height:30px; border-radius:10px;
+      background:linear-gradient(145deg, color-mix(in oklab, var(--acc) 90%, white), var(--acc));
+      display:grid; place-items:center; color:var(--acc-ink); font-weight:900; letter-spacing:.2px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.25), 0 8px 18px rgba(0,0,0,.25);
+      transform: translateZ(0);
+    }
     .title{ font-weight:800 }
     .muted{ color:var(--muted) }
-    .btn{ appearance:none; border:none; border-radius:12px; padding:10px 14px; background:var(--acc); color:var(--acc-ink); font-weight:700; cursor:pointer; box-shadow:var(--shadow) }
+
+    .btn{
+      appearance:none; border:0; border-radius:12px;
+      padding:10px 14px; background:var(--acc); color:var(--acc-ink); font-weight:700; cursor:pointer;
+      box-shadow:var(--shadow); transform: translateY(0);
+      transition: transform .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
+      position:relative; overflow:hidden;
+    }
     .btn.secondary{ background:transparent; color:var(--fg); border:1px solid var(--line); box-shadow:none; font-weight:600 }
     .btn.small{ padding:8px 10px; font-size:12px }
+    .btn:active{ transform: translateY(1px) scale(.99) }
+    /* ripple */
+    .btn::after{
+      content:""; position:absolute; inset:auto 0 0 0; height:0; background:color-mix(in oklab, var(--acc) 20%, white);
+      opacity:.0; transition: opacity .25s var(--ease), height .25s var(--ease);
+    }
+    .btn:active::after{ height:100%; opacity:.25 }
+
     main{ max-width:1100px; margin:0 auto; padding:16px }
     .grid{ display:grid; grid-template-columns:1.4fr .9fr; gap:16px }
     @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
-    .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow) }
+
+    .card{
+      background:linear-gradient(180deg, color-mix(in oklab, var(--card) 94%, black), var(--card));
+      border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow);
+      animation: cardIn .35s var(--ease) both;
+    }
+    @keyframes cardIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+    .card:hover{ border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
+
     label{ display:block; font-size:13px; color:var(--muted); margin:8px 0 6px }
-    input, select, textarea{ width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg); }
-    input:focus, select:focus, textarea:focus{ outline:none; box-shadow: var(--ring) }
+    input, select, textarea{
+      width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg);
+      transition: border-color .2s var(--ease), box-shadow .2s var(--ease), background .2s var(--ease);
+    }
+    input:focus, select:focus, textarea:focus{ outline:none; box-shadow: var(--ring); border-color: transparent }
     textarea{ min-height:90px; resize:vertical }
     .row{ display:flex; gap:12px; flex-wrap:wrap }
     .col{ flex:1; min-width:220px }
-    table{ width:100%; border-collapse:collapse; margin-top:8px }
+
+    table{ width:100%; border-collapse:collapse; margin-top:8px; border-radius:12px; overflow:hidden }
     th,td{ padding:10px; border-bottom:1px solid var(--line); text-align:left; font-size:14px }
+    tr:hover td{ background: color-mix(in oklab, var(--bg) 92%, var(--acc) 8%) }
+
     .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px }
-    .tab{ padding:8px 12px; border:1px solid var(--line); border-radius:999px; cursor:pointer; color:var(--muted) }
+    .tab{
+      padding:8px 12px; border:1px solid var(--line); border-radius:999px; cursor:pointer; color:var(--muted);
+      transition: transform .2s var(--ease), background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
+    }
+    .tab:hover{ transform: translateY(-1px) }
     .tab.active{ background:var(--acc); color:var(--acc-ink); border-color:transparent; font-weight:800 }
-    canvas{ width:100%; height:260px; border:1px solid var(--line); border-radius:12px; background:var(--bg) }
+
+    canvas{
+      width:100%; height:260px; border:1px solid var(--line); border-radius:12px; background:var(--bg);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+      transition: height .2s var(--ease);
+    }
+
     .calendar{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px }
     .cal-head{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; color:var(--muted); font-size:12px }
-    .cell{ min-height:84px; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer }
+    .cell{
+      min-height:84px; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer;
+      transition: transform .15s var(--ease), border-color .15s var(--ease);
+    }
+    .cell:hover{ transform: translateY(-1px); border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
     .cell .d{ font-weight:700; font-size:12px; color:var(--muted) }
+
     .pill{ display:inline-block; padding:6px 10px; border-radius:9999px; border:1px solid var(--line); font-size:12px; color:var(--muted) }
     .toast{ position:fixed; inset:auto 16px 16px 16px; display:none }
     .toast .inner{ background:var(--card); border:1px solid var(--line); padding:12px 14px; border-radius:14px; box-shadow:var(--shadow) }
-    .toast.show{ display:block }
+    .toast.show{ display:block; animation: toastIn .25s var(--ease) both }
+    @keyframes toastIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
 
-    /* Animations + theme */
-    :root { transition: background-color .25s ease, color .25s ease; }
+    .tabpanel{ opacity:1; transform: translateY(0); }
+    .anim-in{ animation: fadeSlide .28s var(--ease) both; }
+    @keyframes fadeSlide{ from{ opacity:.0; transform: translateY(6px) } to{ opacity:1; transform: translateY(0) } }
+
+    /* Theme palette + controls */
     :root[data-mode="dark"]{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; }
     :root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; }
     .theme-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:8px }
     .theme-controls .group{ display:flex; gap:6px; padding:6px; border:1px solid var(--line); border-radius:12px; background:var(--card) }
-    .theme-controls .swatch{ width:22px; height:22px; border-radius:999px; border:1px solid var(--line); cursor:pointer }
-    .tabpanel{ opacity:1; transform: translateY(0); }
-    .anim-in{ animation: fadeSlide .28s ease both; }
-    @keyframes fadeSlide{ from{ opacity:.0; transform: translateY(6px) } to{ opacity:1; transform: translateY(0) } }
+    .theme-controls .swatch{ width:22px; height:22px; border-radius:999px; border:1px solid var(--line); cursor:pointer; transition: transform .15s var(--ease) }
+    .theme-controls .swatch:active{ transform: scale(.95) }
 
-    /* ---- Mobile tables: scroll instead of squeezing ---- */
+    /* Mobile tables: scroll rather than squish */
     @media (max-width: 700px){
       table{ display:block; overflow-x:auto; white-space:nowrap; }
       th,td{ min-width:120px; }
+      canvas{ height:340px; }
     }
   </style>
 </head>
@@ -84,7 +165,6 @@
         <label class="btn secondary" style="padding:10px 12px"><input type="file" id="importCsv" accept=".csv" style="display:none">Import CSV</label>
         <button id="installInfo" class="btn">Install</button>
 
-        <!-- Theme + accent + reset -->
         <div id="themeControls" class="theme-controls">
           <div class="group" role="group" aria-label="Theme mode">
             <button id="themeLight" class="btn small secondary" title="Light">Light</button>
@@ -110,7 +190,6 @@
       <div class="tab" data-tab="trends">Trends</div>
       <div class="tab" data-tab="calendar">Calendar</div>
       <div class="tab" data-tab="entries">Entries</div>
-      <!-- Steps tabs -->
       <div class="tab" data-tab="steps-log">Steps Log</div>
       <div class="tab" data-tab="steps-trends">Steps Trends</div>
       <div class="tab" data-tab="steps-calendar">Steps Calendar</div>
@@ -158,7 +237,7 @@
           <select id="smooth"><option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option></select>
         </div>
       </div>
-      <canvas id="chart" width="900" height="260" style="margin-top:10px"></canvas>
+      <canvas id="chart"></canvas>
       <div class="muted" id="chartMeta" style="margin-top:6px">—</div>
     </section>
 
@@ -207,7 +286,7 @@
           <select id="stepsSmooth"><option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option></select>
         </div>
       </div>
-      <canvas id="stepsChart" width="900" height="260" style="margin-top:10px"></canvas>
+      <canvas id="stepsChart"></canvas>
       <div class="muted" id="stepsChartMeta" style="margin-top:6px">—</div>
     </section>
 
@@ -228,7 +307,7 @@
       <table id="stepsTable"><thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
     </section>
 
-    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-7 • SW ?v=12 • add “?nosw=1” to bypass</div>
+    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-8 • SW ?v=13 • add “?nosw=1” to bypass</div>
   </main>
 
   <div class="toast" id="toast"><div class="inner" id="toastText">Saved</div></div>
@@ -247,19 +326,31 @@
   </div>
 
 <script>
-/* ---------- Utils ---------- */
+/* ===== Utils ===== */
 function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 function toMin(t){ if(!t) return null; const [H,M]=t.split(':').map(Number); return H*60+M } function fromMin(m){ const H=String(Math.floor(m/60)).padStart(2,'0'); const M=String(m%60).padStart(2,'0'); return `${H}:${M}` }
 function toast(msg){ $('#toastText').textContent=msg; $('#toast').classList.add('show'); setTimeout(()=>$('#toast').classList.remove('show'),1400) }
 
-/* ----- Modal helpers ----- */
+/* Canvas: responsive size + HiDPI crispness */
+function setupCanvas(canvas, baseCssHeight=260){
+  const cssH = (window.innerWidth <= 700) ? 340 : baseCssHeight;
+  canvas.style.width = '100%';
+  canvas.style.height = cssH + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width  = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(cssH * dpr));
+  return { W: rect.width, H: cssH, dpr };
+}
+
+/* Modal helpers */
 function openModal({title, html, onEdit, onDelete}){
   const overlay = $('#modal'), card = $('#modalCard');
   $('#modalTitle').textContent = title;
   $('#modalBody').innerHTML = html;
   overlay.style.display = 'flex';
-  requestAnimationFrame(()=>{ card.style.transition='all .22s ease'; card.style.transform='translateY(0)'; card.style.opacity='1'; });
+  requestAnimationFrame(()=>{ card.style.transition='all .22s var(--ease)'; card.style.transform='translateY(0)'; card.style.opacity='1'; });
   $('#modalClose').onclick = closeModal;
   $('#modalEdit').onclick = ()=>{ closeModal(); onEdit?.(); };
   $('#modalDelete').onclick = ()=>{ if(confirm('Delete this entry?')){ onDelete?.(); closeModal(); } };
@@ -272,41 +363,33 @@ function closeModal(){
   setTimeout(()=>{ overlay.style.display='none'; document.onkeydown=null; }, 180);
 }
 
-/* ---------- Theme ---------- */
+/* ===== Theme ===== */
 const THEME_MODE_KEY='gidget.theme.mode', THEME_ACCENT_KEY='gidget.theme.accent', ACCENTS={mint:'#6EE7B7',blue:'#0EA5E9',violet:'#8b5cf6',amber:'#f59e0b',rose:'#f43f5e'};
 function applyTheme(mode,accent){ const root=document.documentElement; if(mode==='light'||mode==='dark') root.setAttribute('data-mode',mode); else root.removeAttribute('data-mode'); root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.mint); }
 function initThemeControls(){ const m=localStorage.getItem(THEME_MODE_KEY)||'system', a=localStorage.getItem(THEME_ACCENT_KEY)||'mint'; applyTheme(m,a); $('#themeLight').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'light');applyTheme('light',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $('#themeSystem').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'system');applyTheme('system',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $('#themeDark').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'dark');applyTheme('dark',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $$('#themeControls .swatch').forEach(el=>el.addEventListener('click',()=>{const x=el.getAttribute('data-accent');localStorage.setItem(THEME_ACCENT_KEY,x);applyTheme(localStorage.getItem(THEME_MODE_KEY)||'system',x)})); }
 
-/* ---------- Storage Keys ---------- */
-const KEY='gidget_site_v1';           // wake entries
-const STEPS_KEY='gidget_steps_v1';    // steps entries
-
-/* ---------- Load/Save ---------- */
+/* ===== Storage ===== */
+const KEY='gidget_site_v1';            // wake
+const STEPS_KEY='gidget_steps_v1';     // steps
 function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]} }
 function save(rows){ localStorage.setItem(KEY, JSON.stringify(rows)) }
 function loadSteps(){ try{return JSON.parse(localStorage.getItem(STEPS_KEY))||[]}catch{return[]} }
 function saveSteps(rows){ localStorage.setItem(STEPS_KEY, JSON.stringify(rows)) }
 
-/* ---------- Tabs (delegated, robust) ---------- */
+/* ===== Tabs ===== */
 document.addEventListener('DOMContentLoaded', ()=>{
   const tabsBar = document.querySelector('.tabs');
   if(tabsBar){
     tabsBar.addEventListener('click', (ev)=>{
       const tab = ev.target.closest('.tab');
       if(!tab || !tabsBar.contains(tab)) return;
-
       document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
       tab.classList.add('active');
 
       const id = tab.getAttribute('data-tab');
       document.querySelectorAll('.tabpanel').forEach(p=> p.hidden = true);
       const panel = document.getElementById('panel-'+id);
-      if(panel){
-        panel.hidden = false;
-        panel.classList.add('anim-in');
-        panel.addEventListener('animationend', ()=> panel.classList.remove('anim-in'), {once:true});
-      }
-
+      if(panel){ panel.hidden = false; panel.classList.add('anim-in'); panel.addEventListener('animationend', ()=> panel.classList.remove('anim-in'), {once:true}); }
       try{
         if(id==='trends') drawChart();
         if(id==='calendar') renderCalendar();
@@ -319,7 +402,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 });
 
-/* ---------- Wake: form + stats + table + chart + calendar ---------- */
+/* ===== Wake: form + list + chart + calendar ===== */
 const todayISO=ymdLocal(new Date());
 const dateEl=$('#date'), wakeEl=$('#wake'), weightEl=$('#weight'), moodEl=$('#mood'), notesEl=$('#notes');
 document.addEventListener('DOMContentLoaded', ()=>{ if(dateEl) dateEl.value=todayISO; });
@@ -357,24 +440,22 @@ function renderTable(rows){
 let rangeDays=7;
 $('#smooth')?.addEventListener('change', drawChart);
 $$('.rangeBtn').forEach(b=> b.addEventListener('click', ()=>{ rangeDays=+b.dataset.range; drawChart() }));
-
 function movingAvg(arr,k){ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1?sum/Math.min(k,i+1):arr[i]) } return out }
 
-/* Wake chart with hit targets */
+/* Wake chart with click targets */
 let wakePts = [];
 function drawChart(){
   const rows=load().filter(r=>r.wake);
   const canvas=$('#chart'); if(!canvas) return;
-  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height);
+  const {W,H,dpr}=setupCanvas(canvas,260);
+  const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
   wakePts = [];
 
-  const now=new Date();
-  const start=new Date(); start.setDate(now.getDate()-rangeDays+1);
-  const isoStart=ymdLocal(start);
-  const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
+  const now=new Date(), start=new Date(); start.setDate(now.getDate()-rangeDays+1);
+  const data=rows.filter(r=>r.date>=ymdLocal(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
   $('#chartMeta').textContent=data.length?`${data.length} points`:'No data in range';
 
-  const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height;
+  const padL=50, padR=12, padT=12, padB=24;
   const styles=getComputedStyle(document.body);
   const line=styles.getPropertyValue('--line'), acc=styles.getPropertyValue('--acc'), muted=styles.getPropertyValue('--muted');
 
@@ -382,71 +463,38 @@ function drawChart(){
   ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
 
   function yMap(mins){ let v=mins; if(v<900) v+=1440; const min=900, max=1800; const t=(v-min)/(max-min); return padT+(1-t)*(H-padT-padB) }
-  const ticks=[18*60,21*60,0,3*60];
   ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui';
-  ticks.forEach(t=>{ const y=yMap(t); ctx.fillText(fromMin((t+1440)%1440), padL-6, y); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() });
+  [18*60,21*60,0,3*60].forEach(t=>{ const y=yMap(t); ctx.fillText(fromMin((t+1440)%1440), padL-6, y); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() });
 
   if(!data.length) return;
-
   const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
 
   ctx.fillStyle=acc;
-  data.forEach((pt,i)=>{
-    const x=xPos(i), y=yMap(pt.m);
-    wakePts.push({x,y,date:pt.d});
-    ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill();
-  });
+  data.forEach((pt,i)=>{ const x=xPos(i), y=yMap(pt.m); wakePts.push({x,y,date:pt.d}); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill(); });
 
   const k=+($('#smooth')?.value||1);
   const vals=data.map(d=>{ let v=d.m; if(v<900) v+=1440; return v });
   const sm=movingAvg(vals,k);
   ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath();
-  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) });
-  ctx.stroke();
+  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke();
 }
 
-/* Bind click/touch for wake chart */
 (function bindWakeClicks(){
   const canvas = $('#chart'); if(!canvas) return;
-  const getXY = (e)=>{
-    const rect = canvas.getBoundingClientRect();
-    const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
-    const cx = (e.touches? e.touches[0].clientX : e.clientX) - rect.left;
-    const cy = (e.touches? e.touches[0].clientY : e.clientY) - rect.top;
-    return {x: cx*sx, y: cy*sy};
-  };
+  const getXY = (e)=>{ const r=canvas.getBoundingClientRect(), sx=canvas.width/r.width, sy=canvas.height/r.height; const p=e.touches? e.touches[0]:e; return {x:(p.clientX-r.left)*sx, y:(p.clientY-r.top)*sy}; };
   const handle = (e)=>{
-    if(!wakePts.length) return;
-    const {x,y} = getXY(e);
-    let best=null, bestD=1e12;
-    for(const p of wakePts){ const dx=x-p.x, dy=y-p.y; const d=dx*dx+dy*dy; if(d<bestD){ best=p; bestD=d; } }
-    if(best && bestD <= 12*12){
-      const rows = load(); const r = rows.find(z=>z.date===best.date) || {};
+    if(!wakePts.length) return; const {x,y}=getXY(e); let best=null, d2=1e12;
+    for(const p of wakePts){ const dx=x-p.x, dy=y-p.y; const dd=dx*dx+dy*dy; if(dd<d2){d2=dd; best=p;} }
+    if(best && d2<=12*12){ const rows=load(); const r=rows.find(z=>z.date===best.date)||{};
       openModal({
-        title: `Wake • ${best.date}`,
-        html: `
-          <div><b>Wake</b>: ${r.wake||'—'}</div>
-          <div><b>Weight</b>: ${r.weight||'—'} g</div>
-          <div><b>Mood</b>: ${r.mood||'—'}</div>
-          <div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>
-        `,
-        onEdit: ()=>{ 
-          document.querySelector('[data-tab="log"]').click();
-          $('#date').value = best.date;
-          $('#wake').value = r.wake||'';
-          $('#weight').value = r.weight||'';
-          $('#mood').value = r.mood||'';
-          $('#notes').value = r.notes||'';
-        },
-        onDelete: ()=>{
-          const left = load().filter(z=>z.date!==best.date);
-          save(left); renderTable(left); drawChart(); renderCalendar(); renderStats(left); toast('Entry deleted');
-        }
+        title:`Wake • ${best.date}`,
+        html:`<div><b>Wake</b>: ${r.wake||'—'}</div><div><b>Weight</b>: ${r.weight||'—'} g</div><div><b>Mood</b>: ${r.mood||'—'}</div><div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>`,
+        onEdit:()=>{ document.querySelector('[data-tab="log"]').click(); $('#date').value=best.date; $('#wake').value=r.wake||''; $('#weight').value=r.weight||''; $('#mood').value=r.mood||''; $('#notes').value=r.notes||''; },
+        onDelete:()=>{ const left=load().filter(z=>z.date!==best.date); save(left); renderTable(left); drawChart(); renderCalendar(); renderStats(left); toast('Entry deleted'); }
       });
     }
   };
-  canvas.addEventListener('click', handle);
-  canvas.addEventListener('touchstart', handle, {passive:true});
+  canvas.addEventListener('click', handle); canvas.addEventListener('touchstart', handle, {passive:true});
 })();
 
 /* Calendar */
@@ -469,7 +517,7 @@ $('#prevMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth
 $('#nextMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderCalendar() })
 $('#todayMonth')?.addEventListener('click', ()=>{ calRef=new Date(); renderCalendar() })
 
-/* ---------- CSV (combined wake + steps) ---------- */
+/* ===== CSV (both sets) ===== */
 $('#exportCsv')?.addEventListener('click', ()=>{
   const rows=load(), steps=loadSteps();
   const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
@@ -492,7 +540,7 @@ $('#importCsv')?.addEventListener('change', async (e)=>{
   toast('Imported CSV');
 });
 
-/* ---------- Reset ---------- */
+/* ===== Reset ===== */
 $('#resetData')?.addEventListener('click', ()=>{
   if(confirm('Reset all Gidget entries (wake + steps) on this device? This cannot be undone.')){
     localStorage.removeItem(KEY); localStorage.removeItem(STEPS_KEY);
@@ -502,7 +550,7 @@ $('#resetData')?.addEventListener('click', ()=>{
   }
 });
 
-/* ---------- Steps: form + stats + table + chart + calendar ---------- */
+/* ===== Steps: form + list + chart + calendar ===== */
 const stepsDateEl=$('#stepsDate'), stepsCountEl=$('#stepsCount'), stepsNotesEl=$('#stepsNotes');
 function stepsTodayISO(){ return ymdLocal(new Date()); }
 document.addEventListener('DOMContentLoaded', ()=>{ if(stepsDateEl) stepsDateEl.value=stepsTodayISO(); });
@@ -518,7 +566,7 @@ function renderStepsToday(rows){ const t=rows.find(r=>r.date===stepsTodayISO());
 function renderStepsStats(rows){ let s=0, d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){ s++; d.setDate(d.getDate()-1) } $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymdLocal(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); const avg=vals.length? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null; $('#stepsAvg7').textContent=`7‑day avg: ${avg??'—'}` }
 function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML=''; const filtered=[...rows].sort((a,b)=>b.date.localeCompare(a.date)); for(const r of filtered){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-sdate="${r.date}">Delete</button></td>`; tb.appendChild(tr) } $$('button[data-sdate]',tb).forEach(b=> b.addEventListener('click', e=>{ const d=e.target.getAttribute('data-sdate'); const left=loadSteps().filter(r=>r.date!==d); saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); toast('Steps entry deleted') })) }
 
-/* Steps chart with hit targets */
+/* Steps chart with click targets */
 let stepsRange=7, stepsPts = [];
 $('#stepsSmooth')?.addEventListener('change', drawStepsChart);
 $$('.stepsRangeBtn').forEach(b=> b.addEventListener('click', ()=>{ stepsRange=+b.dataset.range; drawStepsChart() }));
@@ -526,14 +574,15 @@ $$('.stepsRangeBtn').forEach(b=> b.addEventListener('click', ()=>{ stepsRange=+b
 function drawStepsChart(){
   const rows=loadSteps().filter(r=>r.steps);
   const canvas=$('#stepsChart'); if(!canvas) return;
-  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width, canvas.height);
+  const {W,H,dpr}=setupCanvas(canvas,260);
+  const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
   stepsPts = [];
 
   const now=new Date(); const start=new Date(); start.setDate(now.getDate()-stepsRange+1); const isoStart=ymdLocal(start);
   const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date, v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
   $('#stepsChartMeta').textContent=data.length?`${data.length} points`:'No data in range';
 
-  const padL=50, padR=12, padT=12, padB=24, W=canvas.width, H=canvas.height;
+  const padL=50, padR=12, padT=12, padB=24;
   const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line'); const acc=styles.getPropertyValue('--acc'); const muted=styles.getPropertyValue('--muted');
 
   ctx.strokeStyle=line; ctx.lineWidth=1;
@@ -572,44 +621,22 @@ function drawStepsChart(){
   });
 }
 
-/* Bind click/touch for steps chart */
 (function bindStepsClicks(){
   const canvas = $('#stepsChart'); if(!canvas) return;
-  const getXY = (e)=>{
-    const rect = canvas.getBoundingClientRect();
-    const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
-    const cx = (e.touches? e.touches[0].clientX : e.clientX) - rect.left;
-    const cy = (e.touches? e.touches[0].clientY : e.clientY) - rect.top;
-    return {x: cx*sx, y: cy*sy};
-  };
+  const getXY = (e)=>{ const r=canvas.getBoundingClientRect(), sx=canvas.width/r.width, sy=canvas.height/r.height; const p=e.touches? e.touches[0]:e; return {x:(p.clientX-r.left)*sx, y:(p.clientY-r.top)*sy}; };
   const handle = (e)=>{
-    if(!stepsPts.length) return;
-    const {x,y} = getXY(e);
-    let best=null, bestD=1e12;
-    for(const p of stepsPts){ const dx=x-p.x, dy=y-p.y; const d=dx*dx+dy*dy; if(d<bestD){ best=p; bestD=d; } }
-    if(best && bestD <= 12*12){
-      const rows = loadSteps(); const r = rows.find(z=>z.date===best.date) || {};
+    if(!stepsPts.length) return; const {x,y}=getXY(e); let best=null, d2=1e12;
+    for(const p of stepsPts){ const dx=x-p.x, dy=y-p.y; const dd=dx*dx+dy*dy; if(dd<d2){d2=dd; best=p;} }
+    if(best && d2<=12*12){ const rows=loadSteps(); const r=rows.find(z=>z.date===best.date)||{};
       openModal({
-        title: `Steps • ${best.date}`,
-        html: `
-          <div><b>Steps</b>: ${r.steps||'—'}</div>
-          <div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>
-        `,
-        onEdit: ()=>{
-          document.querySelector('[data-tab="steps-log"]').click();
-          $('#stepsDate').value = best.date;
-          $('#stepsCount').value = r.steps||'';
-          $('#stepsNotes').value = r.notes||'';
-        },
-        onDelete: ()=>{
-          const left = loadSteps().filter(z=>z.date!==best.date);
-          saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); renderStepsStats(left); toast('Steps entry deleted');
-        }
+        title:`Steps • ${best.date}`,
+        html:`<div><b>Steps</b>: ${r.steps||'—'}</div><div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>`,
+        onEdit:()=>{ document.querySelector('[data-tab="steps-log"]').click(); $('#stepsDate').value=best.date; $('#stepsCount').value=r.steps||''; $('#stepsNotes').value=r.notes||''; },
+        onDelete:()=>{ const left=loadSteps().filter(z=>z.date!==best.date); saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); renderStepsStats(left); toast('Steps entry deleted'); }
       });
     }
   };
-  canvas.addEventListener('click', handle);
-  canvas.addEventListener('touchstart', handle, {passive:true});
+  canvas.addEventListener('click', handle); canvas.addEventListener('touchstart', handle, {passive:true});
 })();
 
 /* Steps calendar */
@@ -632,7 +659,7 @@ $('#stepsPrevMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(steps
 $('#stepsNextMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar() })
 $('#stepsTodayMonth')?.addEventListener('click', ()=>{ stepsCalRef=new Date(); renderStepsCalendar() })
 
-/* ---------- Boot ---------- */
+/* ===== Boot ===== */
 document.addEventListener('DOMContentLoaded', ()=>{
   initThemeControls();
   if(stepsDateEl) stepsDateEl.value=stepsTodayISO();
@@ -640,13 +667,20 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const srows=loadSteps(); renderStepsToday(srows); renderStepsStats(srows); renderStepsTable(srows); drawStepsChart(); renderStepsCalendar();
 });
 
-/* ---------- SW registration with version param, bypass, auto-update ---------- */
+/* Re-render charts when layout/size changes */
+let resizeTO=null;
+function redrawChartsSoon(){ clearTimeout(resizeTO); resizeTO=setTimeout(()=>{ try{ drawChart(); drawStepsChart(); }catch(e){} }, 120); }
+window.addEventListener('resize', redrawChartsSoon);
+window.addEventListener('orientationchange', redrawChartsSoon);
+const ro=new ResizeObserver(redrawChartsSoon); ro.observe(document.body);
+
+/* ===== SW registration (v=13) + bypass ===== */
 if ('serviceWorker' in navigator) {
   const qs = new URL(location.href).searchParams;
   const bypass = qs.has('nosw') || qs.get('nosw') === '1';
   if (!bypass) {
     window.addEventListener('load', async () => {
-      try { const reg = await navigator.serviceWorker.register('./sw.js?v=12'); await reg.update(); } catch (e) {}
+      try { const reg = await navigator.serviceWorker.register('./sw.js?v=13'); await reg.update(); } catch (e) {}
     });
     navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'SW_ACTIVATED') location.reload(); });
     document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible') { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } });
@@ -654,7 +688,6 @@ if ('serviceWorker' in navigator) {
   }
 }
 
-/* ---------- Install help ---------- */
 $('#installInfo')?.addEventListener('click', ()=> alert('On iPhone: open this URL in Safari → Share → Add to Home Screen.'));
 </script>
 </body>
