@@ -1,6 +1,6 @@
-// --- Gidget Service Worker (update-friendly) ---
-const CACHE_STATIC = 'gidget-static-v6';
-const CACHE_HTML   = 'gidget-html-v6';
+// --- Gidget Service Worker (update-friendly, v8) ---
+const CACHE_STATIC = 'gidget-static-v8';
+const CACHE_HTML   = 'gidget-html-v8';
 
 const ASSETS = [
   './',
@@ -31,15 +31,15 @@ self.addEventListener('activate', (event) => {
       await self.clients.claim();
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clients) {
-        client.postMessage({ type: 'SW_ACTIVATED', version: 'v5' });
+        client.postMessage({ type: 'SW_ACTIVATED', version: 'v8' });
       }
     })()
   );
 });
 
-// Fetch:
-// - HTML/navigation -> network-first (falls back to cache)
-// - everything else (same-origin GET) -> cache-first (falls back to network)
+// Fetch strategy:
+// - HTML/navigation => network-first (fresh updates), fallback to cached
+// - Same-origin GET assets => cache-first, fallback to network (then cache)
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
@@ -50,12 +50,12 @@ self.addEventListener('fetch', (event) => {
     req.mode === 'navigate' ||
     (req.headers.get('accept') || '').includes('text/html');
 
-  // For cross-origin requests, just let the network handle it
+  // Only manage same-origin requests
   const sameOrigin = new URL(req.url).origin === self.location.origin;
   if (!sameOrigin) return;
 
   if (isHTML) {
-    // HTML: network-first for fast updates
+    // HTML: network-first
     event.respondWith(
       (async () => {
         try {
