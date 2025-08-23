@@ -1,158 +1,166 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gidget · Hamster Tracker</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gidget · Hamster Tracker</title>
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#0B0F14" />
-  <meta name="x-gidget-version" content="2025-08-23-9" />
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0B0F14" />
+<meta name="x-gidget-version" content="2025-08-23-10" />
 
-  <style>
-    /* ===== TOKENS ===== */
-    :root{
-      --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2;
-      --acc:#6EE7B7; --acc-ink:#06291F;
-      --radius:14px; --shadow:0 12px 34px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35);
-      --blur:8px; --ease: cubic-bezier(.2,.65,.2,1);
-    }
-    @media (prefers-color-scheme: light){
-      :root{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; --acc:#0EA5E9; --acc-ink:#00131C; --shadow:0 12px 34px rgba(0,0,0,.08); --ring:0 0 0 2px rgba(14,165,233,.25);}
-    }
+<style>
+  /* ===== TOKENS ===== */
+  :root{
+    --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2;
+    --acc:#6EE7B7; --acc-ink:#06291F;
+    --radius:14px; --shadow:0 12px 34px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35);
+    --blur:8px; --ease: cubic-bezier(.2,.65,.2,1);
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; --acc:#0EA5E9; --acc-ink:#00131C; --shadow:0 12px 34px rgba(0,0,0,.08); --ring:0 0 0 2px rgba(14,165,233,.25);}
+  }
 
-    /* ===== GLOBAL ===== */
-    *{box-sizing:border-box}
-    html{ scroll-behavior:smooth }
-    body{
-      margin:0; color:var(--fg);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-      background:
-        radial-gradient(1200px 800px at 80% -200px, color-mix(in oklab, var(--acc) 20%, transparent), transparent),
-        radial-gradient(800px 600px at -10% -100px, rgba(255,255,255,.05), transparent),
-        var(--bg);
-      animation: bodyFade .35s var(--ease) both;
-    }
-    @keyframes bodyFade{ from{ opacity:.0; transform:translateY(4px)} to{ opacity:1; transform:none} }
+  /* ===== GLOBAL ===== */
+  *{box-sizing:border-box}
+  html{ scroll-behavior:smooth; height:100% }
+  body{
+    min-height:100%;
+    margin:0; color:var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    background:
+      radial-gradient(1200px 800px at 80% -200px, color-mix(in oklab, var(--acc) 20%, transparent), transparent),
+      radial-gradient(800px 600px at -10% -100px, rgba(255,255,255,.05), transparent),
+      var(--bg);
+    animation: bodyFade .35s var(--ease) both;
+  }
+  @keyframes bodyFade{ from{ opacity:.0; transform:translateY(4px)} to{ opacity:1; transform:none} }
 
-    header{
-      position:sticky; top:0; z-index:50;
-      backdrop-filter: blur(var(--blur));
-      background: color-mix(in oklab, var(--bg) 86%, transparent);
-      border-bottom:1px solid var(--line);
-      transition: background .3s var(--ease), backdrop-filter .3s var(--ease), transform .3s var(--ease);
-    }
-    .nav{ max-width:1100px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; transition: padding .25s var(--ease); }
-    .brand{ display:flex; gap:10px; align-items:center }
-    .badge{
-      width:30px; height:30px; border-radius:10px;
-      background:linear-gradient(145deg, color-mix(in oklab, var(--acc) 90%, white), var(--acc));
-      display:grid; place-items:center; color:var(--acc-ink); font-weight:900; letter-spacing:.2px;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.25), 0 8px 18px rgba(0,0,0,.25);
-      transform: translateZ(0);
-      transition: transform .25s var(--ease), box-shadow .25s var(--ease), width .25s var(--ease), height .25s var(--ease);
-    }
-    .title{ font-weight:800; transition: transform .25s var(--ease), opacity .25s var(--ease); }
-    .muted{ color:var(--muted) }
+  /* ===== HEADER (shrink on scroll) ===== */
+  header{
+    position:sticky; top:0; z-index:50;
+    backdrop-filter: blur(var(--blur));
+    background: color-mix(in oklab, var(--bg) 86%, transparent);
+    border-bottom:1px solid var(--line);
+    transition: background .3s var(--ease), backdrop-filter .3s var(--ease), transform .3s var(--ease);
+    will-change: transform, backdrop-filter, background;
+  }
+  .nav{ max-width:1100px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; transition: padding .25s var(--ease); }
+  .brand{ display:flex; gap:10px; align-items:center }
+  .badge{
+    width:30px; height:30px; border-radius:10px;
+    background:linear-gradient(145deg, color-mix(in oklab, var(--acc) 90%, white), var(--acc));
+    display:grid; place-items:center; color:var(--acc-ink); font-weight:900; letter-spacing:.2px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.25), 0 8px 18px rgba(0,0,0,.25);
+    transform: translateZ(0);
+    transition: transform .25s var(--ease), box-shadow .25s var(--ease), width .25s var(--ease), height .25s var(--ease);
+  }
+  .title{ font-weight:800; transition: transform .25s var(--ease), opacity .25s var(--ease); }
+  .muted{ color:var(--muted) }
 
-    /* Shrink state */
-    header.shrink .nav { padding: 6px 16px; }
-    header.shrink .badge { width:24px; height:24px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), 0 6px 14px rgba(0,0,0,.2); }
-    header.shrink .title { transform: translateY(-1px) scale(.98); opacity:.95; }
-    header.shrink { backdrop-filter: blur(calc(var(--blur) + 2px)); background: color-mix(in oklab, var(--bg) 92%, transparent); }
+  /* Shrunk state */
+  header.shrink .nav { padding: 6px 16px; }
+  header.shrink .badge { width:24px; height:24px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), 0 6px 14px rgba(0,0,0,.2); }
+  header.shrink .title { transform: translateY(-1px) scale(.98); opacity:.95; }
+  header.shrink { backdrop-filter: blur(calc(var(--blur) + 2px)); background: color-mix(in oklab, var(--bg) 92%, transparent); }
 
-    .btn{
-      appearance:none; border:0; border-radius:12px; padding:10px 14px;
-      background:var(--acc); color:var(--acc-ink); font-weight:700; cursor:pointer;
-      box-shadow:var(--shadow); transform: translateY(0);
-      transition: transform .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
-      position:relative; overflow:hidden;
-    }
-    .btn.secondary{ background:transparent; color:var(--fg); border:1px solid var(--line); box-shadow:none; font-weight:600 }
-    .btn.small{ padding:8px 10px; font-size:12px }
-    .btn:active{ transform: translateY(1px) scale(.99) }
-    .btn::after{
-      content:""; position:absolute; inset:auto 0 0 0; height:0; background:color-mix(in oklab, var(--acc) 20%, white);
-      opacity:.0; transition: opacity .25s var(--ease), height .25s var(--ease);
-    }
-    .btn:active::after{ height:100%; opacity:.25 }
+  /* ===== UI ===== */
+  .btn{
+    appearance:none; border:0; border-radius:12px; padding:10px 14px;
+    background:var(--acc); color:var(--acc-ink); font-weight:700; cursor:pointer;
+    box-shadow:var(--shadow); transform: translateY(0);
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
+    position:relative; overflow:hidden;
+  }
+  .btn.secondary{ background:transparent; color:var(--fg); border:1px solid var(--line); box-shadow:none; font-weight:600 }
+  .btn.small{ padding:8px 10px; font-size:12px }
+  .btn:active{ transform: translateY(1px) scale(.99) }
+  .btn::after{
+    content:""; position:absolute; inset:auto 0 0 0; height:0; background:color-mix(in oklab, var(--acc) 20%, white);
+    opacity:.0; transition: opacity .25s var(--ease), height .25s var(--ease);
+  }
+  .btn:active::after{ height:100%; opacity:.25 }
 
-    main{ max-width:1100px; margin:0 auto; padding:16px }
-    .grid{ display:grid; grid-template-columns:1.4fr .9fr; gap:16px }
-    @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
+  main{ max-width:1100px; margin:0 auto; padding:16px }
+  .grid{ display:grid; grid-template-columns:1.4fr .9fr; gap:16px }
+  @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
 
-    .card{
-      background:linear-gradient(180deg, color-mix(in oklab, var(--card) 94%, black), var(--card));
-      border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow);
-      animation: cardIn .35s var(--ease) both;
-    }
-    @keyframes cardIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
-    .card:hover{ border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
+  .card{
+    background:linear-gradient(180deg, color-mix(in oklab, var(--card) 94%, black), var(--card));
+    border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow);
+    animation: cardIn .35s var(--ease) both;
+  }
+  @keyframes cardIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+  .card:hover{ border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
 
-    label{ display:block; font-size:13px; color:var(--muted); margin:8px 0 6px }
-    input, select, textarea{
-      width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg);
-      transition: border-color .2s var(--ease), box-shadow .2s var(--ease), background .2s var(--ease);
-    }
-    input:focus, select:focus, textarea:focus{ outline:none; box-shadow: var(--ring); border-color: transparent }
-    textarea{ min-height:90px; resize:vertical }
-    .row{ display:flex; gap:12px; flex-wrap:wrap }
-    .col{ flex:1; min-width:220px }
+  label{ display:block; font-size:13px; color:var(--muted); margin:8px 0 6px }
+  input, select, textarea{
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg);
+    transition: border-color .2s var(--ease), box-shadow .2s var(--ease), background .2s var(--ease);
+  }
+  input:focus, select:focus, textarea:focus{ outline:none; box-shadow: var(--ring); border-color: transparent }
+  textarea{ min-height:90px; resize:vertical }
+  .row{ display:flex; gap:12px; flex-wrap:wrap }
+  .col{ flex:1; min-width:220px }
 
-    table{ width:100%; border-collapse:collapse; margin-top:8px; border-radius:12px; overflow:hidden }
-    th,td{ padding:10px; border-bottom:1px solid var(--line); text-align:left; font-size:14px }
-    tr:hover td{ background: color-mix(in oklab, var(--bg) 92%, var(--acc) 8%) }
+  table{ width:100%; border-collapse:collapse; margin-top:8px; border-radius:12px; overflow:hidden }
+  th,td{ padding:10px; border-bottom:1px solid var(--line); text-align:left; font-size:14px }
+  tr:hover td{ background: color-mix(in oklab, var(--bg) 92%, var(--acc) 8%) }
 
-    .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px }
-    .tab{
-      padding:8px 12px; border:1px solid var(--line); border-radius:999px; cursor:pointer; color:var(--muted);
-      transition: transform .2s var(--ease), background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
-    }
-    .tab:hover{ transform: translateY(-1px) }
-    .tab.active{ background:var(--acc); color:var(--acc-ink); border-color:transparent; font-weight:800 }
+  .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px }
+  .tab{
+    padding:8px 12px; border:1px solid var(--line); border-radius:999px; cursor:pointer; color:var(--muted);
+    transition: transform .2s var(--ease), background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
+  }
+  .tab:hover{ transform: translateY(-1px) }
+  .tab.active{ background:var(--acc); color:var(--acc-ink); border-color:transparent; font-weight:800 }
 
-    canvas{
-      width:100%; height:260px; border:1px solid var(--line); border-radius:12px; background:var(--bg);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-      transition: height .2s var(--ease);
-    }
+  canvas{
+    width:100%; height:260px; border:1px solid var(--line); border-radius:12px; background:var(--bg);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    transition: height .2s var(--ease);
+  }
 
-    .calendar{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px }
-    .cal-head{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; color:var(--muted); font-size:12px }
-    .cell{ min-height:84px; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer; transition: transform .15s var(--ease), border-color .15s var(--ease); }
-    .cell:hover{ transform: translateY(-1px); border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
-    .cell .d{ font-weight:700; font-size:12px; color:var(--muted) }
+  .calendar{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px }
+  .cal-head{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; color:var(--muted); font-size:12px }
+  .cell{ min-height:84px; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer; transition: transform .15s var(--ease), border-color .15s var(--ease); }
+  .cell:hover{ transform: translateY(-1px); border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
+  .cell .d{ font-weight:700; font-size:12px; color:var(--muted) }
 
-    .pill{ display:inline-block; padding:6px 10px; border-radius:9999px; border:1px solid var(--line); font-size:12px; color:var(--muted) }
-    .toast{ position:fixed; inset:auto 16px 16px 16px; display:none }
-    .toast .inner{ background:var(--card); border:1px solid var(--line); padding:12px 14px; border-radius:14px; box-shadow:var(--shadow) }
-    .toast.show{ display:block; animation: toastIn .25s var(--ease) both }
-    @keyframes toastIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+  .pill{ display:inline-block; padding:6px 10px; border-radius:9999px; border:1px solid var(--line); font-size:12px; color:var(--muted) }
+  .toast{ position:fixed; inset:auto 16px 16px 16px; display:none }
+  .toast .inner{ background:var(--card); border:1px solid var(--line); padding:12px 14px; border-radius:14px; box-shadow:var(--shadow) }
+  .toast.show{ display:block; animation: toastIn .25s var(--ease) both }
+  @keyframes toastIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
 
-    .tabpanel{ opacity:1; transform: translateY(0); }
-    .anim-in{ animation: fadeSlide .28s var(--ease) both; }
-    @keyframes fadeSlide{ from{ opacity:.0; transform: translateY(6px) } to{ opacity:1; transform: translateY(0) } }
+  .anim-in{ animation: fadeSlide .28s var(--ease) both; }
+  @keyframes fadeSlide{ from{ opacity:.0; transform: translateY(6px) } to{ opacity:1; transform: translateY(0) } }
 
-    /* Theme palette + controls */
-    :root[data-mode="dark"]{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; }
-    :root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; }
-    .theme-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:8px }
-    .theme-controls .group{ display:flex; gap:6px; padding:6px; border:1px solid var(--line); border-radius:12px; background:var(--card) }
-    .theme-controls .swatch{ width:22px; height:22px; border-radius:999px; border:1px solid var(--line); cursor:pointer; transition: transform .15s var(--ease) }
-    .theme-controls .swatch:active{ transform: scale(.95) }
+  /* Theme palette + controls */
+  :root[data-mode="dark"]{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; }
+  :root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; }
+  .theme-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:8px }
+  .theme-controls .group{ display:flex; gap:6px; padding:6px; border:1px solid var(--line); border-radius:12px; background:var(--card) }
+  .theme-controls .swatch{ width:22px; height:22px; border-radius:999px; border:1px solid var(--line); cursor:pointer; transition: transform .15s var(--ease) }
+  .theme-controls .swatch:active{ transform: scale(.95) }
 
-    /* Mobile tables & charts */
-    @media (max-width: 700px){
-      table{ display:block; overflow-x:auto; white-space:nowrap; }
-      th,td{ min-width:120px; }
-      canvas{ height:340px; }
-    }
-  </style>
+  /* Clickable month titles */
+  #calTitle, #stepsCalTitle{ cursor:pointer; position:relative; }
+  #calTitle::after, #stepsCalTitle::after{ content:"▾"; font-size:.9em; margin-left:.35em; opacity:.7; }
+  #calTitle:hover, #stepsCalTitle:hover{ text-decoration:underline; }
+
+  /* Mobile tables & charts */
+  @media (max-width: 700px){
+    table{ display:block; overflow-x:auto; white-space:nowrap; }
+    th,td{ min-width:120px; }
+    canvas{ height:340px; }
+  }
+</style>
 </head>
 <body>
-  <header>
+  <header id="topbar">
     <div class="nav">
       <div class="brand">
         <div class="badge" aria-hidden="true">G</div>
@@ -246,7 +254,10 @@
     <section class="card tabpanel" id="panel-calendar" hidden>
       <div class="row" style="justify-content:space-between; align-items:center">
         <div class="row"><button id="prevMonth" class="btn small secondary">‹</button><button id="todayMonth" class="btn small secondary">Today</button><button id="nextMonth" class="btn small secondary">›</button></div>
-        <div class="title" id="calTitle">—</div>
+        <div>
+          <div class="title" id="calTitle">—</div>
+          <div class="muted" style="font-size:12px;margin-top:2px">Tap the month to choose another</div>
+        </div>
       </div>
       <div class="cal-head" style="margin-top:8px"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
       <div class="calendar" id="calendar"></div>
@@ -295,7 +306,10 @@
     <section class="card tabpanel" id="panel-steps-calendar" hidden>
       <div class="row" style="justify-content:space-between; align-items:center">
         <div class="row"><button id="stepsPrevMonth" class="btn small secondary">‹</button><button id="stepsTodayMonth" class="btn small secondary">Today</button><button id="stepsNextMonth" class="btn small secondary">›</button></div>
-        <div class="title" id="stepsCalTitle">—</div>
+        <div>
+          <div class="title" id="stepsCalTitle">—</div>
+          <div class="muted" style="font-size:12px;margin-top:2px">Tap the month to choose another</div>
+        </div>
       </div>
       <div class="cal-head" style="margin-top:8px"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
       <div class="calendar" id="stepsCalendar"></div>
@@ -308,10 +322,14 @@
       <table id="stepsTable"><thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
     </section>
 
-    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-9 • SW ?v=14 • add “?nosw=1” to bypass</div>
+    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-10 • SW ?v=15 • add “?nosw=1” to bypass</div>
   </main>
 
   <div class="toast" id="toast"><div class="inner" id="toastText">Saved</div></div>
+
+  <!-- Hidden native month pickers -->
+  <input type="month" id="monthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none" />
+  <input type="month" id="stepsMonthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none" />
 
   <!-- Modal -->
   <div id="modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:40">
@@ -358,11 +376,7 @@ function openModal({title, html, onEdit, onDelete}){
   overlay.onclick = (e)=>{ if(e.target===overlay) closeModal(); };
   document.onkeydown = (e)=>{ if(e.key==='Escape') closeModal(); };
 }
-function closeModal(){
-  const overlay = $('#modal'), card = $('#modalCard');
-  card.style.transform='translateY(6px)'; card.style.opacity='0';
-  setTimeout(()=>{ overlay.style.display='none'; document.onkeydown=null; }, 180);
-}
+function closeModal(){ const overlay=$('#modal'), card=$('#modalCard'); card.style.transform='translateY(6px)'; card.style.opacity='0'; setTimeout(()=>{ overlay.style.display='none'; document.onkeydown=null; }, 180); }
 
 /* ===== Theme ===== */
 const THEME_MODE_KEY='gidget.theme.mode', THEME_ACCENT_KEY='gidget.theme.accent', ACCENTS={mint:'#6EE7B7',blue:'#0EA5E9',violet:'#8b5cf6',amber:'#f59e0b',rose:'#f43f5e'};
@@ -455,7 +469,7 @@ function drawChart(){
   const data=rows.filter(r=>r.date>=ymdLocal(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
   $('#chartMeta').textContent=data.length?`${data.length} points`:'No data in range';
 
-  const padL=50, padR=12, padT=12, padB=28; // extra space for x labels
+  const padL=50, padR=12, padT=12, padB=28; // extra for x labels
   const styles=getComputedStyle(document.body);
   const line=styles.getPropertyValue('--line').trim(), acc=styles.getPropertyValue('--acc').trim(), muted=styles.getPropertyValue('--muted').trim();
 
@@ -470,51 +484,17 @@ function drawChart(){
 
   if(!data.length) return;
 
-  // X helpers + labels
+  // X labels
   const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
+  function formatDayLabel(dstr){ const d=new Date(dstr+'T00:00:00'); const short=d.toLocaleDateString(undefined,{weekday:'short', day:'numeric'}); const dm=d.toLocaleDateString(undefined,{day:'2-digit', month:'short'}); return rangeDays<=14 ? short : dm; }
+  function formatMonthLabel(dstr){ const d=new Date(dstr+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short', year: rangeDays>365 ? '2-digit':'numeric'}); }
 
-  function formatDayLabel(dstr){
-    const d=new Date(dstr+'T00:00:00'); // local
-    const short = d.toLocaleDateString(undefined,{weekday:'short', day:'numeric'});
-    const dm = d.toLocaleDateString(undefined,{day:'2-digit', month:'short'});
-    return rangeDays<=14 ? short : dm;
-  }
-  function formatMonthLabel(dstr){
-    const d=new Date(dstr+'T00:00:00');
-    return d.toLocaleDateString(undefined,{month:'short', year: rangeDays>365 ? '2-digit':'numeric'});
-  }
-
-  // choose ticks
   let ticks=[];
-  if(rangeDays<=14){
-    // Daily ticks
-    for(let i=0;i<data.length;i++){
-      if(i===0 || i===data.length-1 || (i%2===0)){
-        ticks.push({i, text: formatDayLabel(data[i].d)});
-      }
-    }
-  }else if(rangeDays<=90){
-    // Month view: show every ~5th point and at month changes
-    let lastMonth=-1;
-    for(let i=0;i<data.length;i++){
-      const d=new Date(data[i].d+'T00:00:00');
-      const isNewMonth=d.getMonth()!==lastMonth;
-      if(isNewMonth || i%5===0 || i===data.length-1){
-        ticks.push({i, text: formatMonthLabel(data[i].d)});
-        lastMonth=d.getMonth();
-      }
-    }
-  }else{
-    // Year: show month changes only
-    let seen={};
-    for(let i=0;i<data.length;i++){
-      const d=new Date(data[i].d+'T00:00:00'); const key=`${d.getFullYear()}-${d.getMonth()}`;
-      if(!seen[key]){ seen[key]=true; ticks.push({i, text: d.toLocaleDateString(undefined,{month:'short'})}); }
-    }
-  }
+  if(rangeDays<=14){ for(let i=0;i<data.length;i++){ if(i===0 || i===data.length-1 || (i%2===0)){ ticks.push({i, text: formatDayLabel(data[i].d)}); } } }
+  else if(rangeDays<=90){ let lastMonth=-1; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const isNewMonth=d.getMonth()!==lastMonth; if(isNewMonth || i%5===0 || i===data.length-1){ ticks.push({i, text: formatMonthLabel(data[i].d)}); lastMonth=d.getMonth(); } } }
+  else { let seen={}; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const key=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[key]){ seen[key]=true; ticks.push({i, text: d.toLocaleDateString(undefined,{month:'short'})}); } } }
 
-  // Draw X labels
-  ctx.fillStyle=muted; ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillStyle=muted; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.font='12px system-ui';
   ticks.forEach(t=>{ const x=xPos(t.i); ctx.fillText(t.text, x, H-padB+6); });
 
   // Points
@@ -567,6 +547,16 @@ function renderCalendar(){
 $('#prevMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()-1); renderCalendar() })
 $('#nextMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderCalendar() })
 $('#todayMonth')?.addEventListener('click', ()=>{ calRef=new Date(); renderCalendar() })
+
+// Wake month title → native month picker
+(function monthPickerWake(){
+  const title = $('#calTitle'); const picker = $('#monthPicker'); if(!title || !picker) return;
+  function openPicker(){ const y=calRef.getFullYear(), m=String(calRef.getMonth()+1).padStart(2,'0'); picker.value=`${y}-${m}`; try{ if(picker.showPicker) picker.showPicker(); else picker.click(); }catch{ picker.click(); } }
+  picker.addEventListener('change', ()=>{ if(!picker.value) return; const [yy,mm]=picker.value.split('-').map(Number); calRef=new Date(yy,mm-1,1); renderCalendar(); });
+  title.addEventListener('click', openPicker);
+  title.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openPicker(); }});
+  title.setAttribute('tabindex','0'); title.setAttribute('role','button'); title.setAttribute('aria-label','Choose month to display');
+})();
 
 /* ===== CSV (both sets) ===== */
 $('#exportCsv')?.addEventListener('click', ()=>{
@@ -725,6 +715,16 @@ $('#stepsPrevMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(steps
 $('#stepsNextMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar() })
 $('#stepsTodayMonth')?.addEventListener('click', ()=>{ stepsCalRef=new Date(); renderStepsCalendar() })
 
+// Steps month title → native month picker
+(function monthPickerSteps(){
+  const title=$('#stepsCalTitle'), picker=$('#stepsMonthPicker'); if(!title||!picker) return;
+  function openPicker(){ const y=stepsCalRef.getFullYear(), m=String(stepsCalRef.getMonth()+1).padStart(2,'0'); picker.value=`${y}-${m}`; try{ if(picker.showPicker) picker.showPicker(); else picker.click(); }catch{ picker.click(); } }
+  picker.addEventListener('change', ()=>{ if(!picker.value) return; const [yy,mm]=picker.value.split('-').map(Number); stepsCalRef=new Date(yy,mm-1,1); renderStepsCalendar(); });
+  title.addEventListener('click', openPicker);
+  title.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openPicker(); }});
+  title.setAttribute('tabindex','0'); title.setAttribute('role','button'); title.setAttribute('aria-label','Choose month to display');
+})();
+
 /* ===== Boot ===== */
 document.addEventListener('DOMContentLoaded', ()=>{
   initThemeControls();
@@ -740,25 +740,26 @@ window.addEventListener('resize', redrawChartsSoon);
 window.addEventListener('orientationchange', redrawChartsSoon);
 const ro=new ResizeObserver(redrawChartsSoon); ro.observe(document.body);
 
-/* Header shrink on scroll */
+/* Header shrink on scroll (ensured) */
 (function headerShrink(){
   const hdr = document.querySelector('header'); if(!hdr) return;
   let ticking=false;
   function onScroll(){
     if(ticking) return; ticking=true;
-    requestAnimationFrame(()=>{ const y=window.scrollY||0; if(y>10) hdr.classList.add('shrink'); else hdr.classList.remove('shrink'); ticking=false; });
+    requestAnimationFrame(()=>{ const y=window.scrollY||document.documentElement.scrollTop||0; if(y>10) hdr.classList.add('shrink'); else hdr.classList.remove('shrink'); ticking=false; });
   }
   window.addEventListener('scroll', onScroll, {passive:true});
-  onScroll();
+  // also trigger after content injections
+  setTimeout(onScroll, 0);
 })();
 
-/* ===== SW registration (v=14) + bypass ===== */
+/* ===== SW registration (v=15) + bypass ===== */
 if ('serviceWorker' in navigator) {
   const qs = new URL(location.href).searchParams;
   const bypass = qs.has('nosw') || qs.get('nosw') === '1';
   if (!bypass) {
     window.addEventListener('load', async () => {
-      try { const reg = await navigator.serviceWorker.register('./sw.js?v=14'); await reg.update(); } catch (e) {}
+      try { const reg = await navigator.serviceWorker.register('./sw.js?v=15'); await reg.update(); } catch (e) {}
     });
     navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'SW_ACTIVATED') location.reload(); });
     document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible') { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } });
