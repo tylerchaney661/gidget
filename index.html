@@ -1,118 +1,26 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Gidget · Hamster Tracker</title>
-<link rel="manifest" href="manifest.webmanifest"/>
-<meta name="theme-color" content="#0B0F14"/>
-<meta name="x-gidget-version" content="2025-08-23-12"/>
-
-<style>
-/* ===== Design tokens ===== */
-:root{
-  --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2;
-  --acc:#0EA5E9; --acc-ink:#00131C;
-  --radius:14px; --shadow:0 12px 34px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(14,165,233,.25);
-  --blur:8px; --ease:cubic-bezier(.2,.65,.2,1);
-}
-:root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; --ring:0 0 0 2px rgba(14,165,233,.25);}
-:root[data-mode="dark"]{  --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; --ring:0 0 0 2px rgba(110,231,183,.35);}
-
-/* ===== Base ===== */
-*{box-sizing:border-box}
-html{scroll-behavior:smooth;height:100%}
-body{
-  margin:0;min-height:100%;color:var(--fg);
-  font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
-  background:
-    radial-gradient(1200px 800px at 80% -200px, color-mix(in oklab, var(--acc) 14%, transparent), transparent),
-    radial-gradient(800px 600px at -10% -100px, rgba(255,255,255,.05), transparent),
-    var(--bg);
-}
-
-/* ===== Header: sticky + hide on scroll down ===== */
-header{
-  position:sticky; top:0; z-index:1000;
-  backdrop-filter:blur(var(--blur));
-  background:color-mix(in oklab, var(--bg) 86%, transparent);
-  border-bottom:1px solid var(--line);
-  transition:transform .28s var(--ease), background .28s var(--ease), padding .28s var(--ease);
-  will-change:transform,background;
-}
-.nav{max-width:1100px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-header.shrink .nav{padding:6px 16px}
-header.hide{transform:translateY(-100%)}
-.brand{display:flex;gap:10px;align-items:center}
-.badge{
-  width:30px;height:30px;border-radius:10px;
-  background:linear-gradient(145deg, color-mix(in oklab, var(--acc) 90%, white), var(--acc));
-  display:grid;place-items:center;color:var(--acc-ink);font-weight:900;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.25),0 8px 18px rgba(0,0,0,.25);
-  transition:width .22s var(--ease), height .22s var(--ease);
-}
-header.shrink .badge{width:24px;height:24px}
-.title{font-weight:800;transition:transform .22s var(--ease),opacity .22s var(--ease)}
-header.shrink .title{transform:translateY(-1px) scale(.98);opacity:.96}
-.muted{color:var(--muted)}
-
-/* ===== Controls ===== */
-.btn{appearance:none;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:transparent;color:var(--fg);font-weight:700;cursor:pointer}
-.btn.solid{background:var(--acc);border-color:transparent;color:var(--acc-ink);box-shadow:var(--shadow)}
-.btn.small{padding:8px 10px;font-size:12px}
-.btn:active{transform:translateY(1px) scale(.99)}
-
-.theme-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.theme-controls .group{display:flex;gap:6px;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-.swatch{width:22px;height:22px;border-radius:999px;border:1px solid var(--line);cursor:pointer}
-
-/* ===== Layout ===== */
-main{max-width:1100px;margin:0 auto;padding:16px}
-.grid{display:grid;grid-template-columns:1.4fr .9fr;gap:16px}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}
-
-.card{background:linear-gradient(180deg, color-mix(in oklab, var(--card) 94%, black), var(--card));border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
-label{display:block;font-size:13px;color:var(--muted);margin:8px 0 6px}
-input,select,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
-input:focus,select:focus,textarea:focus{outline:none;box-shadow:var(--ring);border-color:transparent}
-textarea{min-height:90px;resize:vertical}
-.row{display:flex;gap:12px;flex-wrap:wrap}
-.col{flex:1;min-width:220px}
-
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-.tab{padding:8px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);cursor:pointer;user-select:none}
-.tab.active{background:var(--acc);color:var(--acc-ink);border-color:transparent;font-weight:800}
-
-table{width:100%;border-collapse:collapse;margin-top:8px;border-radius:12px;overflow:hidden}
-th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
-tr:hover td{background:color-mix(in oklab, var(--bg) 92%, var(--acc) 8%)}
-
-canvas{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
-@media(max-width:700px){canvas{height:340px} table{display:block;overflow-x:auto;white-space:nowrap} th,td{min-width:120px}}
-
-.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;color:var(--muted);font-size:12px}
-.cell{min-height:84px;border:1px solid var(--line);border-radius:12px;padding:8px;cursor:pointer;transition:transform .15s,border-color .15s}
-.cell:hover{transform:translateY(-1px);border-color:color-mix(in oklab, var(--acc) 30%, var(--line))}
-.cell .d{font-weight:700;font-size:12px;color:var(--muted)}
-
-/* Month titles clickable */
-#calTitle,#stepsCalTitle{cursor:pointer;position:relative}
-#calTitle::after,#stepsCalTitle::after{content:"▾";font-size:.9em;margin-left:.35em;opacity:.7}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gidget · Hamster Tracker</title>
+  <meta name="theme-color" content="#0B0F14" />
+  <meta name="x-gidget-version" content="2025-08-23-13" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
-  <!-- ===== Header ===== -->
+  <!-- ============== Header ============== -->
   <header id="topbar">
-    <div class="nav">
+    <nav class="nav">
       <div class="brand">
         <div class="badge" aria-hidden="true">G</div>
         <div>
           <div class="title">Gidget · Hamster Tracker</div>
-          <div class="muted" style="font-size:12px">Wake-up · Steps · Trends · Calendar · Offline</div>
+          <div class="muted tiny">Wake‑up · Steps · Trends · Calendar · Offline</div>
         </div>
       </div>
+
       <div class="theme-controls">
         <div class="group" role="group" aria-label="Theme mode">
           <button id="themeLight" class="btn small">Light</button>
@@ -120,30 +28,34 @@ canvas{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;b
           <button id="themeDark" class="btn small">Dark</button>
         </div>
         <div class="group" role="group" aria-label="Accent">
-          <div class="swatch" data-accent="blue"   title="Blue"   style="background:#0EA5E9"></div>
-          <div class="swatch" data-accent="mint"   title="Mint"   style="background:#6EE7B7"></div>
-          <div class="swatch" data-accent="violet" title="Violet" style="background:#8b5cf6"></div>
-          <div class="swatch" data-accent="amber"  title="Amber"  style="background:#f59e0b"></div>
-          <div class="swatch" data-accent="rose"   title="Rose"   style="background:#f43f5e"></div>
+          <button class="swatch" data-accent="blue"   title="Blue"></button>
+          <button class="swatch" data-accent="mint"   title="Mint"></button>
+          <button class="swatch" data-accent="violet" title="Violet"></button>
+          <button class="swatch" data-accent="amber"  title="Amber"></button>
+          <button class="swatch" data-accent="rose"   title="Rose"></button>
         </div>
         <button id="exportCsv" class="btn">Export CSV</button>
-        <label class="btn"><input type="file" id="importCsv" accept=".csv" style="display:none">Import CSV</label>
+        <label class="btn">
+          <input type="file" id="importCsv" accept=".csv" hidden />
+          Import CSV
+        </label>
         <button id="installInfo" class="btn solid">Install</button>
       </div>
-    </div>
+    </nav>
   </header>
 
+  <!-- ============== Main ============== -->
   <main>
     <!-- Tabs -->
     <div class="tabs" id="tabs">
-      <div class="tab active" data-tab="log">Log</div>
-      <div class="tab" data-tab="trends">Trends</div>
-      <div class="tab" data-tab="calendar">Calendar</div>
-      <div class="tab" data-tab="entries">Entries</div>
-      <div class="tab" data-tab="steps-log">Steps Log</div>
-      <div class="tab" data-tab="steps-trends">Steps Trends</div>
-      <div class="tab" data-tab="steps-calendar">Steps Calendar</div>
-      <div class="tab" data-tab="steps-entries">Steps Entries</div>
+      <button class="tab active" data-tab="log">Log</button>
+      <button class="tab" data-tab="trends">Trends</button>
+      <button class="tab" data-tab="calendar">Calendar</button>
+      <button class="tab" data-tab="entries">Entries</button>
+      <button class="tab" data-tab="steps-log">Steps Log</button>
+      <button class="tab" data-tab="steps-trends">Steps Trends</button>
+      <button class="tab" data-tab="steps-calendar">Steps Calendar</button>
+      <button class="tab" data-tab="steps-entries">Steps Entries</button>
     </div>
 
     <!-- Wake Log -->
@@ -151,63 +63,111 @@ canvas{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;b
       <section class="card">
         <h3>Quick Log (Wake)</h3>
         <div class="row">
-          <div class="col"><label>Date</label><input id="date" type="date"></div>
-          <div class="col"><label>Wake‑Up Time</label><div class="row"><input id="wake" type="time" style="flex:1"><button id="nowBtn" class="btn">Now</button></div></div>
+          <div class="col">
+            <label for="date">Date</label>
+            <input id="date" type="date" />
+          </div>
+          <div class="col">
+            <label for="wake">Wake‑Up Time</label>
+            <div class="row">
+              <input id="wake" type="time" style="flex:1" />
+              <button id="nowBtn" class="btn">Now</button>
+            </div>
+          </div>
         </div>
+
         <div class="row">
-          <div class="col"><label>Weight (g)</label><input id="weight" type="number" min="0" step="1"></div>
-          <div class="col"><label>Mood</label><select id="mood"><option value="">—</option><option>Calm</option><option>Curious</option><option>Energetic</option><option>Grumpy</option><option>Sleepy</option></select></div>
+          <div class="col">
+            <label for="weight">Weight (g)</label>
+            <input id="weight" type="number" min="0" step="1" />
+          </div>
+          <div class="col">
+            <label for="mood">Mood</label>
+            <select id="mood">
+              <option value="">—</option>
+              <option>Calm</option><option>Curious</option><option>Energetic</option>
+              <option>Grumpy</option><option>Sleepy</option>
+            </select>
+          </div>
         </div>
-        <label>Notes</label><textarea id="notes" placeholder="Behaviour, room temp, cage changes…"></textarea>
-        <div class="row" style="margin-top:12px"><button id="save" class="btn solid">Save Entry</button><button id="clearForm" class="btn">Clear</button></div>
-        <div class="muted" id="todayBox" style="margin-top:8px">—</div>
-        <div class="row" style="margin-top:8px"><span id="streak" class="muted">Streak: 0</span><span id="avg7" class="muted">7‑day avg: —</span></div>
+
+        <label for="notes">Notes</label>
+        <textarea id="notes" placeholder="Behaviour, room temp, cage changes…"></textarea>
+
+        <div class="row mt">
+          <button id="save" class="btn solid">Save Entry</button>
+          <button id="clearForm" class="btn">Clear</button>
+        </div>
+
+        <div class="muted mt" id="todayBox">—</div>
+        <div class="row mt">
+          <span id="streak" class="pill">Streak: 0</span>
+          <span id="avg7" class="pill">7‑day avg: —</span>
+        </div>
       </section>
 
       <section class="card">
         <h3>Filter</h3>
         <div class="row">
-          <div class="col"><label>From</label><input id="filterFrom" type="date"></div>
-          <div class="col"><label>To</label><input id="filterTo" type="date"></div>
+          <div class="col">
+            <label for="filterFrom">From</label>
+            <input id="filterFrom" type="date" />
+          </div>
+          <div class="col">
+            <label for="filterTo">To</label>
+            <input id="filterTo" type="date" />
+          </div>
         </div>
-        <div class="row" style="margin-top:10px"><button id="applyFilter" class="btn">Apply</button><button id="resetFilter" class="btn">Reset</button></div>
+        <div class="row mt">
+          <button id="applyFilter" class="btn">Apply</button>
+          <button id="resetFilter" class="btn">Reset</button>
+        </div>
       </section>
     </section>
 
     <!-- Wake Trends -->
     <section class="card tabpanel" id="panel-trends" hidden>
-      <div class="row" style="align-items:center;justify-content:space-between">
+      <div class="row between">
         <div class="row">
           <button class="btn small rangeBtn" data-range="7">Week</button>
           <button class="btn small rangeBtn" data-range="30">Month</button>
           <button class="btn small rangeBtn" data-range="365">Year</button>
         </div>
         <div class="row">
-          <label class="muted" style="margin:0">Smoothing</label>
-          <select id="smooth"><option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option></select>
+          <label for="smooth" class="muted m0">Smoothing</label>
+          <select id="smooth">
+            <option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option>
+          </select>
         </div>
       </div>
       <canvas id="chart"></canvas>
-      <div class="muted" id="chartMeta" style="margin-top:6px">—</div>
+      <div class="muted" id="chartMeta">—</div>
     </section>
 
     <!-- Wake Calendar -->
     <section class="card tabpanel" id="panel-calendar" hidden>
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <div class="row"><button id="prevMonth" class="btn small">‹</button><button id="todayMonth" class="btn small">Today</button><button id="nextMonth" class="btn small">›</button></div>
+      <div class="row between">
+        <div class="row">
+          <button id="prevMonth" class="btn small">‹</button>
+          <button id="todayMonth" class="btn small">Today</button>
+          <button id="nextMonth" class="btn small">›</button>
+        </div>
         <div>
-          <div class="title" id="calTitle" tabindex="0" role="button" aria-label="Choose month">—</div>
-          <div class="muted" style="font-size:12px;margin-top:2px">Tap the month to choose another</div>
+          <div class="title clickable" id="calTitle" tabindex="0" role="button" aria-label="Choose month">—</div>
+          <div class="muted tiny">Tap the month to choose another</div>
         </div>
       </div>
-      <div class="cal-head" style="margin-top:8px"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
+      <div class="cal-head mt"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
       <div class="calendar" id="calendar"></div>
     </section>
 
     <!-- Wake Entries -->
     <section class="card tabpanel" id="panel-entries" hidden>
       <h3>Entries</h3>
-      <table id="table"><thead><tr><th>Date</th><th>Wake‑Up</th><th>Weight</th><th>Mood</th><th>Food</th><th>Sand</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="table">
+        <thead><tr><th>Date</th><th>Wake‑Up</th><th>Weight</th><th>Mood</th><th>Food</th><th>Sand</th><th>Notes</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
     <!-- Steps Log -->
@@ -215,321 +175,92 @@ canvas{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;b
       <section class="card">
         <h3>Steps Log (Morning)</h3>
         <div class="row">
-          <div class="col"><label>Date</label><input id="stepsDate" type="date"></div>
-          <div class="col"><label>Steps</label><input id="stepsCount" type="number" min="0" step="1" placeholder="e.g. 12000"></div>
+          <div class="col">
+            <label for="stepsDate">Date</label>
+            <input id="stepsDate" type="date" />
+          </div>
+          <div class="col">
+            <label for="stepsCount">Steps</label>
+            <input id="stepsCount" type="number" min="0" step="1" placeholder="e.g. 12000" />
+          </div>
         </div>
-        <label>Notes</label><textarea id="stepsNotes" placeholder="Morning notes…"></textarea>
-        <div class="row" style="margin-top:12px"><button id="stepsSave" class="btn solid">Save Steps</button><button id="stepsClear" class="btn">Clear</button></div>
-        <div class="muted" id="stepsTodayBox" style="margin-top:8px">—</div>
-        <div class="row" style="margin-top:8px"><span id="stepsStreak" class="muted">Streak: 0</span><span id="stepsAvg7" class="muted">7‑day avg: —</span></div>
+        <label for="stepsNotes">Notes</label>
+        <textarea id="stepsNotes" placeholder="Morning notes…"></textarea>
+        <div class="row mt">
+          <button id="stepsSave" class="btn solid">Save Steps</button>
+          <button id="stepsClear" class="btn">Clear</button>
+        </div>
+        <div class="muted mt" id="stepsTodayBox">—</div>
+        <div class="row mt">
+          <span id="stepsStreak" class="pill">Streak: 0</span>
+          <span id="stepsAvg7" class="pill">7‑day avg: —</span>
+        </div>
       </section>
     </section>
 
     <!-- Steps Trends -->
     <section class="card tabpanel" id="panel-steps-trends" hidden>
-      <div class="row" style="align-items:center;justify-content:space-between">
+      <div class="row between">
         <div class="row">
           <button class="btn small stepsRangeBtn" data-range="7">Week</button>
           <button class="btn small stepsRangeBtn" data-range="30">Month</button>
           <button class="btn small stepsRangeBtn" data-range="365">Year</button>
         </div>
         <div class="row">
-          <label class="muted" style="margin:0">Smoothing</label>
-          <select id="stepsSmooth"><option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option></select>
+          <label for="stepsSmooth" class="muted m0">Smoothing</label>
+          <select id="stepsSmooth">
+            <option value="1">None</option><option value="3">3‑day</option><option value="7">7‑day</option>
+          </select>
         </div>
       </div>
       <canvas id="stepsChart"></canvas>
-      <div class="muted" id="stepsChartMeta" style="margin-top:6px">—</div>
+      <div class="muted" id="stepsChartMeta">—</div>
     </section>
 
     <!-- Steps Calendar -->
     <section class="card tabpanel" id="panel-steps-calendar" hidden>
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <div class="row"><button id="stepsPrevMonth" class="btn small">‹</button><button id="stepsTodayMonth" class="btn small">Today</button><button id="stepsNextMonth" class="btn small">›</button></div>
+      <div class="row between">
+        <div class="row">
+          <button id="stepsPrevMonth" class="btn small">‹</button>
+          <button id="stepsTodayMonth" class="btn small">Today</button>
+          <button id="stepsNextMonth" class="btn small">›</button>
+        </div>
         <div>
-          <div class="title" id="stepsCalTitle" tabindex="0" role="button" aria-label="Choose month">—</div>
-          <div class="muted" style="font-size:12px;margin-top:2px">Tap the month to choose another</div>
+          <div class="title clickable" id="stepsCalTitle" tabindex="0" role="button" aria-label="Choose month">—</div>
+          <div class="muted tiny">Tap the month to choose another</div>
         </div>
       </div>
-      <div class="cal-head" style="margin-top:8px"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
+      <div class="cal-head mt"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
       <div class="calendar" id="stepsCalendar"></div>
     </section>
 
     <!-- Steps Entries -->
     <section class="card tabpanel" id="panel-steps-entries" hidden>
       <h3>Steps Entries</h3>
-      <table id="stepsTable"><thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="stepsTable">
+        <thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
-    <div class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-12 • SW ?v=17 • add “?nosw=1” to bypass</div>
+    <div class="muted tiny center mt">Version 2025‑08‑23‑13 • SW v17 • add “?nosw=1” to bypass</div>
   </main>
 
-  <!-- Hidden month pickers -->
-  <input type="month" id="monthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none"/>
-  <input type="month" id="stepsMonthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none"/>
+  <!-- Hidden native month pickers -->
+  <input type="month" id="monthPicker" hidden />
+  <input type="month" id="stepsMonthPicker" hidden />
 
   <!-- Modal -->
-  <div id="modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:1200">
-    <div class="card" style="max-width:520px;width:92%">
-      <div id="modalTitle" class="title" style="margin-bottom:8px">Details</div>
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card card">
+      <div id="modalTitle" class="title mb">Details</div>
       <div id="modalBody" class="muted">—</div>
-      <div class="row" style="margin-top:14px;justify-content:flex-end">
-        <button id="modalDelete" class="btn">Delete</button>
+      <div class="row mt end">
         <button id="modalClose" class="btn solid">Close</button>
       </div>
     </div>
   </div>
 
-<script>
-/* ---------- tiny helpers ---------- */
-const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-function ymd(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`;}
-function toMin(t){if(!t) return null; const [H,M]=t.split(':').map(Number); return H*60+M}
-function fromMin(m){const H=String(Math.floor(m/60)).padStart(2,'0'); const M=String(m%60).padStart(2,'0'); return `${H}:${M}`}
-function setupCanvas(cv,h=260){cv.style.width='100%';cv.style.height=(innerWidth<=700?340:h)+'px';const dpr=devicePixelRatio||1;const r=cv.getBoundingClientRect();cv.width=Math.max(1,Math.round(r.width*dpr));cv.height=Math.max(1,Math.round(parseFloat(cv.style.height)*dpr));return{W:r.width,H:parseFloat(cv.style.height),dpr};}
-
-/* ---------- theme controls ---------- */
-const MODE_KEY='gidget.theme.mode', ACC_KEY='gidget.theme.accent', ACCENTS={blue:'#0EA5E9',mint:'#6EE7B7',violet:'#8b5cf6',amber:'#f59e0b',rose:'#f43f5e'};
-function applyTheme(mode,accent){const root=document.documentElement; if(mode==='light'||mode==='dark') root.setAttribute('data-mode',mode); else root.removeAttribute('data-mode'); root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.blue);}
-function initTheme(){const m=localStorage.getItem(MODE_KEY)||'system', a=localStorage.getItem(ACC_KEY)||'blue'; applyTheme(m,a);
-  $('#themeLight').onclick=()=>{localStorage.setItem(MODE_KEY,'light');applyTheme('light',localStorage.getItem(ACC_KEY)||'blue')};
-  $('#themeSystem').onclick=()=>{localStorage.setItem(MODE_KEY,'system');applyTheme('system',localStorage.getItem(ACC_KEY)||'blue')};
-  $('#themeDark').onclick=()=>{localStorage.setItem(MODE_KEY,'dark');applyTheme('dark',localStorage.getItem(ACC_KEY)||'blue')};
-  $$('.swatch').forEach(s=>s.onclick=()=>{localStorage.setItem(ACC_KEY,s.dataset.accent);applyTheme(localStorage.getItem(MODE_KEY)||'system',s.dataset.accent)});
-}
-
-/* ---------- storage ---------- */
-const WAKE_KEY='gidget_site_v1', STEPS_KEY='gidget_steps_v1';
-const loadWake=()=>{try{return JSON.parse(localStorage.getItem(WAKE_KEY))||[]}catch{return[]}};
-const saveWake=(rows)=>localStorage.setItem(WAKE_KEY, JSON.stringify(rows));
-const loadSteps=()=>{try{return JSON.parse(localStorage.getItem(STEPS_KEY))||[]}catch{return[]}};
-const saveSteps=(rows)=>localStorage.setItem(STEPS_KEY, JSON.stringify(rows));
-
-/* ---------- tabs (delegation) ---------- */
-document.addEventListener('DOMContentLoaded', ()=>{
-  initTheme();
-  bindHeaderHide();
-  bindGlobalClicks();
-  monthPicker('#calTitle','#monthPicker', ()=>calRef, d=>{calRef=d; renderCalendar();});
-  monthPicker('#stepsCalTitle','#stepsMonthPicker', ()=>stepsCalRef, d=>{stepsCalRef=d; renderStepsCalendar();});
-  boot();
-});
-function activateTab(name){
-  $$('#tabs .tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
-  $$('.tabpanel').forEach(p=>p.hidden = (p.id !== 'panel-'+name));
-}
-
-/* ---------- header hide/show on scroll ---------- */
-function bindHeaderHide(){
-  const bar=$('#topbar'); let lastY=0; let ticking=false;
-  function onScroll(){
-    if(ticking) return; ticking=true;
-    requestAnimationFrame(()=>{
-      const y=scrollY||document.documentElement.scrollTop||0;
-      bar.classList.toggle('shrink', y>10);
-      if(y>lastY && y>40) bar.classList.add('hide'); else bar.classList.remove('hide');
-      lastY=y; ticking=false;
-    });
-  }
-  addEventListener('scroll', onScroll, {passive:true});
-  onScroll();
-}
-
-/* ---------- month picker helper ---------- */
-function monthPicker(titleSel,inputSel,getRef,setRef){
-  const title=$(titleSel), input=$(inputSel); if(!title||!input) return;
-  function open(){
-    const r=getRef(); const y=r.getFullYear(); const m=String(r.getMonth()+1).padStart(2,'0'); input.value=`${y}-${m}`;
-    try{ if(input.showPicker) input.showPicker(); else input.click(); }catch{ input.click(); }
-  }
-  title.addEventListener('click', open);
-  title.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
-  input.addEventListener('change', ()=>{ if(!input.value) return; const [yy,mm]=input.value.split('-').map(Number); setRef(new Date(yy,mm-1,1)); });
-}
-
-/* ---------- app state ---------- */
-const todayISO=ymd(new Date());
-let calRef=new Date(), stepsCalRef=new Date();
-
-/* ---------- global click handlers ---------- */
-function bindGlobalClicks(){
-  document.addEventListener('click', (e)=>{
-    const t=e.target;
-
-    // tabs
-    const tab=t.closest?.('.tab'); if(tab){ activateTab(tab.dataset.tab);
-      if(tab.dataset.tab==='trends') drawWakeChart();
-      if(tab.dataset.tab==='calendar') renderCalendar();
-      if(tab.dataset.tab==='entries') renderWakeTable(loadWake());
-      if(tab.dataset.tab==='steps-trends') drawStepsChart();
-      if(tab.dataset.tab==='steps-calendar') renderStepsCalendar();
-      if(tab.dataset.tab==='steps-entries') renderStepsTable(loadSteps());
-      return;
-    }
-
-    // wake form
-    if(t.id==='nowBtn'){ const n=new Date(); $('#wake').value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; return; }
-    if(t.id==='save'){
-      const row={date:$('#date').value||todayISO,wake:$('#wake').value||'',weight:$('#weight').value||'',mood:$('#mood').value||'',notes:$('#notes').value||''};
-      const rows=loadWake().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
-      saveWake(rows); afterWake(rows); return;
-    }
-    if(t.id==='clearForm'){ $('#date').value=todayISO; $('#wake').value=''; $('#weight').value=''; $('#mood').value=''; $('#notes').value=''; return; }
-    if(t.id==='applyFilter'){ renderWakeTable(loadWake()); return; }
-    if(t.id==='resetFilter'){ $('#filterFrom').value=''; $('#filterTo').value=''; renderWakeTable(loadWake()); return; }
-
-    // steps form
-    if(t.id==='stepsSave'){
-      const row={date:$('#stepsDate').value||todayISO,steps:$('#stepsCount').value||'',notes:$('#stepsNotes').value||''};
-      const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
-      saveSteps(rows); afterSteps(rows); return;
-    }
-    if(t.id==='stepsClear'){ $('#stepsDate').value=todayISO; $('#stepsCount').value=''; $('#stepsNotes').value=''; return; }
-
-    // calendar nav
-    if(t.id==='prevMonth'){ calRef.setMonth(calRef.getMonth()-1); renderCalendar(); return; }
-    if(t.id==='nextMonth'){ calRef.setMonth(calRef.getMonth()+1); renderCalendar(); return; }
-    if(t.id==='todayMonth'){ calRef=new Date(); renderCalendar(); return; }
-    if(t.id==='stepsPrevMonth'){ stepsCalRef.setMonth(stepsCalRef.getMonth()-1); renderStepsCalendar(); return; }
-    if(t.id==='stepsNextMonth'){ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar(); return; }
-    if(t.id==='stepsTodayMonth'){ stepsCalRef=new Date(); renderStepsCalendar(); return; }
-
-    if(t.id==='installInfo'){ alert('On iPhone: open in Safari → Share → Add to Home Screen.'); return; }
-  });
-}
-
-/* ---------- boot & renders ---------- */
-function boot(){
-  $('#date').value=todayISO; $('#stepsDate').value=todayISO;
-  afterWake(loadWake()); afterSteps(loadSteps());
-}
-function afterWake(rows){ renderWakeToday(rows); renderWakeStats(rows); renderWakeTable(rows); drawWakeChart(); renderCalendar(); }
-function afterSteps(rows){ renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); drawStepsChart(); renderStepsCalendar(); }
-
-/* Wake today/stats/table */
-function renderWakeToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#todayBox').textContent=t?`Today ${t.date}: wake ${t.wake||'—'} · weight ${t.weight||'—'}g · mood ${t.mood||'—'}`:'No entry for today yet.' }
-function renderWakeStats(rows){ let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)} $('#streak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut); const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake)); $('#avg7').textContent=`7‑day avg: ${ts.length?fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)):'—'}` }
-function renderWakeTable(rows){
-  const tb=$('#table tbody'); tb.innerHTML='';
-  const f1=$('#filterFrom').value||'', f2=$('#filterTo').value||'';
-  rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
-    const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn small" data-del="${r.date}">Delete</button></td>`; tb.appendChild(tr);
-  });
-  tb.onclick=(e)=>{ const d=e.target.getAttribute?.('data-del'); if(!d) return; const left=loadWake().filter(r=>r.date!==d); saveWake(left); afterWake(left); };
-}
-
-/* Wake chart */
-let wakeRange=7, wakePts=[];
-document.addEventListener('click', (e)=>{ const b=e.target.closest?.('.rangeBtn'); if(b){ wakeRange=+b.dataset.range; drawWakeChart(); }});
-$('#smooth')?.addEventListener('change', drawWakeChart);
-function drawWakeChart(){
-  const rows=loadWake().filter(r=>r.wake);
-  const cv=$('#chart'); const {W,H,dpr}=setupCanvas(cv,260);
-  const cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H); wakePts=[];
-  const start=new Date(); start.setDate(start.getDate()-wakeRange+1);
-  const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
-  $('#chartMeta').textContent=data.length?`${data.length} points`:'No data in range';
-  const padL=50,padR=12,padT=12,padB=28; const st=getComputedStyle(document.body); const line=st.getPropertyValue('--line').trim(), acc=st.getPropertyValue('--acc').trim(), muted=st.getPropertyValue('--muted').trim();
-  cx.strokeStyle=line; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
-  function yMap(m){let v=m; if(v<900) v+=1440; const min=900,max=1800; const t=(v-min)/(max-min); return padT+(1-t)*(H-padT-padB)}
-  cx.fillStyle=muted; cx.textAlign='right'; cx.textBaseline='middle'; cx.font='12px system-ui';
-  [18*60,21*60,0,3*60].forEach(t=>{const y=yMap(t); cx.fillText(fromMin((t+1440)%1440),padL-6,y); cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(W-padR,y); cx.stroke();});
-  if(!data.length) return;
-  const x=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  function dLabel(s){const d=new Date(s+'T00:00:00'); return (wakeRange<=14)? d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'}) : d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}); }
-  function mLabel(s){const d=new Date(s+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',year:wakeRange>365?'2-digit':'numeric'}); }
-  let ticks=[];
-  if(wakeRange<=14){for(let i=0;i<data.length;i++) if(i===0||i===data.length-1||i%2===0) ticks.push({i,text:dLabel(data[i].d)});}
-  else if(wakeRange<=90){let last=-1; for(let i=0;i<data.length;i++){const d=new Date(data[i].d+'T00:00:00'); const nm=d.getMonth()!==last; if(nm||i%5===0||i===data.length-1){ticks.push({i,text:mLabel(data[i].d)}); last=d.getMonth();}}}
-  else{let seen={}; for(let i=0;i<data.length;i++){const d=new Date(data[i].d+'T00:00:00'); const k=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[k]){seen[k]=true; ticks.push({i,text:d.toLocaleDateString(undefined,{month:'short'})});}}}
-  cx.fillStyle=muted; cx.textAlign='center'; cx.textBaseline='top'; ticks.forEach(t=>cx.fillText(t.text,x(t.i),H-padB+6));
-  cx.fillStyle=acc; data.forEach((p,i)=>{const X=x(i),Y=yMap(p.m); wakePts.push({X,Y,date:p.d}); cx.beginPath(); cx.arc(X,Y,2.5,0,Math.PI*2); cx.fill();});
-  const k=+($('#smooth')?.value||1); const vals=data.map(d=>{let v=d.m; if(v<900)v+=1440; return v}); const sm=((arr,n)=>{if(n<=1)return arr.slice();const out=[];let s=0;for(let i=0;i<arr.length;i++){s+=arr[i]; if(i>=n)s-=arr[i-n]; out.push(i>=n-1? s/Math.min(n,i+1):arr[i])}return out})(vals,k);
-  cx.strokeStyle=acc; cx.lineWidth=2; cx.beginPath(); sm.forEach((v,i)=>{const X=x(i),Y=padT+(1-((v-900)/(1800-900)))*(H-padT-padB); i?cx.lineTo(X,Y):cx.moveTo(X,Y)}); cx.stroke();
-}
-(function(){const cv=$('#chart'); if(!cv) return; const get=(e)=>{const r=cv.getBoundingClientRect(); const p=e.touches?e.touches[0]:e; return {x:p.clientX-r.left,y:p.clientY-r.top}}; const click=(e)=>{if(!wakePts.length) return; const {x,y}=get(e); let best=null,d2=1e12; for(const p of wakePts){const dx=x-p.X,dy=y-p.Y; const dd=dx*dx+dy*dy; if(dd<d2){d2=dd;best=p}} if(best && d2<=16*16){ const r=loadWake().find(z=>z.date===best.date)||{}; openModal(`Wake • ${best.date}`, `<div><b>Wake</b>: ${r.wake||'—'}</div><div><b>Weight</b>: ${r.weight||'—'} g</div><div><b>Mood</b>: ${r.mood||'—'}</div><div style="margin-top:6px"><b>Notes</b>: ${r.notes?String(r.notes).replace(/</g,'&lt;'):'—'}</div>`);} }; cv.addEventListener('click',click); cv.addEventListener('touchstart',click,{passive:true});})();
-
-/* Wake calendar */
-function renderCalendar(){
-  const rows=loadWake(); const box=$('#calendar'); box.innerHTML='';
-  $('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long',year:'numeric'});
-  const y=calRef.getFullYear(), m=calRef.getMonth(); const first=new Date(y,m,1); const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
-  for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
-    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45; cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.wake||'—'}</div>`;
-    cell.onclick=()=>{ activateTab('log'); $('#date').value=iso; $('#wake').value=rec?.wake||''; $('#weight').value=rec?.weight||''; $('#mood').value=rec?.mood||''; $('#notes').value=rec?.notes||''; };
-    box.appendChild(cell);
-  }
-}
-
-/* Steps stats, table, chart, calendar */
-function renderStepsToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#stepsTodayBox').textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.' }
-function renderStepsStats(rows){ let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)} $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); $('#stepsAvg7').textContent=`7‑day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'}` }
-function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); tb.innerHTML=''; [...rows].sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn small" data-del="${r.date}">Delete</button></td>`; tb.appendChild(tr); }); tb.onclick=(e)=>{ const d=e.target.getAttribute?.('data-del'); if(!d) return; const left=loadSteps().filter(r=>r.date!==d); saveSteps(left); afterSteps(left); }; }
-
-let stepsRange=7;
-document.addEventListener('click',(e)=>{const b=e.target.closest?.('.stepsRangeBtn'); if(b){ stepsRange=+b.dataset.range; drawStepsChart(); }});
-$('#stepsSmooth')?.addEventListener('change', drawStepsChart);
-function drawStepsChart(){
-  const rows=loadSteps().filter(r=>r.steps); const cv=$('#stepsChart'); const {W,H,dpr}=setupCanvas(cv,260); const cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
-  const start=new Date(); start.setDate(start.getDate()-stepsRange+1); const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
-  $('#stepsChartMeta').textContent=data.length?`${data.length} points`:'No data in range';
-  const padL=50,padR=12,padT=12,padB=28; const st=getComputedStyle(document.body); const line=st.getPropertyValue('--line').trim(), acc=st.getPropertyValue('--acc').trim(), muted=st.getPropertyValue('--muted').trim();
-  cx.strokeStyle=line; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
-  if(!data.length) return;
-  const x=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  function mLabel(s){const d=new Date(s+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',year:stepsRange>365?'2-digit':'numeric'})}
-  let ticks=[];
-  if(stepsRange<=14){for(let i=0;i<data.length;i++){if(i===0||i===data.length-1||i%2===0){const d=new Date(data[i].d+'T00:00:00'); ticks.push({i,text:d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'})});}}}
-  else if(stepsRange<=90){let last=-1; for(let i=0;i<data.length;i++){const d=new Date(data[i].d+'T00:00:00'); const nm=d.getMonth()!==last; if(nm||i%5===0||i===data.length-1){ticks.push({i,text:mLabel(data[i].d)}); last=d.getMonth();}}}
-  else{let seen={}; for(let i=0;i<data.length;i++){const d=new Date(data[i].d+'T00:00:00'); const k=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[k]){seen[k]=true; ticks.push({i,text:d.toLocaleDateString(undefined,{month:'short'})});}}}
-  cx.fillStyle=muted; cx.textAlign='center'; cx.textBaseline='top'; ticks.forEach(t=>cx.fillText(t.text,x(t.i),H-padB+6));
-  const vals=data.map(p=>p.v), yMin=Math.max(0,Math.floor(Math.min(...vals)*0.95)), yMax=Math.ceil(Math.max(...vals)*1.05)||1;
-  cx.textAlign='right'; cx.textBaseline='middle'; for(let i=0;i<=5;i++){const t=i/5; const y=padT+(1-t)*(H-padT-padB); const v=Math.round(yMin+t*(yMax-yMin)); cx.fillText(v,padL-6,y); cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(W-padR,y); cx.stroke();}
-  const k=+($('#stepsSmooth')?.value||1); const sm=((arr,n)=>{if(n<=1)return arr.slice();const out=[];let s=0;for(let i=0;i<arr.length;i++){s+=arr[i]; if(i>=n)s-=arr[i-n]; out.push(i>=n-1? s/Math.min(n,i+1):arr[i])}return out})(vals,k);
-  cx.strokeStyle=acc; cx.lineWidth=2; cx.beginPath(); sm.forEach((v,i)=>{const X=x(i); const Y=padT+(1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?cx.lineTo(X,Y):cx.moveTo(X,Y)}); cx.stroke();
-}
-
-/* Steps calendar */
-function renderStepsCalendar(){
-  const rows=loadSteps(); const box=$('#stepsCalendar'); box.innerHTML='';
-  $('#stepsCalTitle').textContent=stepsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
-  const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth(); const first=new Date(y,m,1); const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
-  for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
-    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45; cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.steps||'—'}</div>`;
-    cell.onclick=()=>{ activateTab('steps-log'); $('#stepsDate').value=iso; $('#stepsCount').value=rec?.steps||''; $('#stepsNotes').value=rec?.notes||''; };
-    box.appendChild(cell);
-  }
-}
-
-/* CSV (both) */
-$('#exportCsv').onclick=()=>{
-  const wake=loadWake(), steps=loadSteps();
-  const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
-  const lines=[...wake.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(',')),
-               ...steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(','))];
-  const blob=new Blob([header+lines.join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
-};
-$('#importCsv').addEventListener('change', async e=>{
-  const f=e.target.files[0]; if(!f) return; const text=await f.text(); const lines=text.trim().split(/\r?\n/); const header=lines.shift()?.split(',')||[]; const idxType=header.indexOf('Type');
-  const W=[], S=[]; for(const ln of lines){ const p=ln.split(','); const type=(idxType>=0?p[idxType]:'wake'); if(type==='steps'){S.push({date:p[1],steps:p[6]||'',notes:p[5]||''});} else {W.push({date:p[1],wake:p[2]||'',weight:p[3]||'',mood:p[4]||'',notes:p[5]||''});}}
-  saveWake(W); saveSteps(S); afterWake(W); afterSteps(S);
-});
-
-/* Modal */
-function openModal(title,html){ $('#modalTitle').textContent=title; $('#modalBody').innerHTML=html; $('#modal').style.display='flex'; }
-$('#modalClose').onclick=()=>$('#modal').style.display='none';
-$('#modalDelete').onclick=()=>$('#modal').style.display='none';
-</script>
-
-<script>
-/* ====== PWA (SW v17) ====== */
-if('serviceWorker' in navigator){
-  const qs=new URL(location.href).searchParams;
-  if(!(qs.has('nosw')||qs.get('nosw')==='1')){
-    addEventListener('load', async ()=>{ try{ const reg=await navigator.serviceWorker.register('./sw.js?v=17'); await reg.update(); }catch(e){} });
-    let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
-  }
-}
-</script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
