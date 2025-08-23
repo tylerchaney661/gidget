@@ -4,8 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gidget · Hamster Tracker</title>
+
+  <!-- PWA + cache-bust -->
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0B0F14" />
+  <meta name="x-gidget-version" content="2025-08-23-1" />
+
   <style>
     :root{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; --acc:#6EE7B7; --acc-ink:#06291F; --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35); }
     @media (prefers-color-scheme: light){
@@ -27,7 +31,7 @@
     @media (max-width: 820px){ .grid{grid-template-columns:1fr} }
     .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow) }
     label{ display:block; font-size:13px; color:var(--muted); margin:8px 0 6px }
-    input, select, textarea{ width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg) }
+    input, select, textarea{ width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg); }
     input:focus, select:focus, textarea:focus{ outline:none; box-shadow: var(--ring) }
     textarea{ min-height:90px; resize:vertical }
     .row{ display:flex; gap:12px; flex-wrap:wrap }
@@ -46,6 +50,22 @@
     .toast{ position:fixed; inset:auto 16px 16px 16px; display:none }
     .toast .inner{ background:var(--card); border:1px solid var(--line); padding:12px 14px; border-radius:14px; box-shadow:var(--shadow) }
     .toast.show{ display:block }
+
+    /* ==== THEME + ACCENT + ANIMATIONS ==== */
+    :root { transition: background-color .25s ease, color .25s ease; }
+    :root[data-mode="dark"]{
+      --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2;
+    }
+    :root[data-mode="light"]{
+      --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072;
+    }
+    .theme-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:8px }
+    .theme-controls .group{ display:flex; gap:6px; padding:6px; border:1px solid var(--line); border-radius:12px; background:var(--card) }
+    .theme-controls .swatch{ width:22px; height:22px; border-radius:999px; border:1px solid var(--line); cursor:pointer }
+
+    .tabpanel{ opacity:1; transform: translateY(0); }
+    .anim-in{ animation: fadeSlide .28s ease both; }
+    @keyframes fadeSlide{ from{ opacity:.0; transform: translateY(6px) } to{ opacity:1; transform: translateY(0) } }
   </style>
 </head>
 <body>
@@ -62,6 +82,23 @@
         <button id="exportCsv" class="btn secondary">Export CSV</button>
         <label class="btn secondary" style="padding:10px 12px"><input type="file" id="importCsv" accept=".csv" style="display:none">Import CSV</label>
         <button id="installInfo" class="btn">Install</button>
+
+        <!-- Theme + accent + reset -->
+        <div id="themeControls" class="theme-controls">
+          <div class="group" role="group" aria-label="Theme mode">
+            <button id="themeLight" class="btn small secondary" title="Light">Light</button>
+            <button id="themeSystem" class="btn small secondary" title="System">System</button>
+            <button id="themeDark" class="btn small secondary" title="Dark">Dark</button>
+          </div>
+          <div class="group" role="group" aria-label="Accent">
+            <div class="swatch" data-accent="mint"   title="Mint"   style="background:#6EE7B7"></div>
+            <div class="swatch" data-accent="blue"   title="Blue"   style="background:#0EA5E9"></div>
+            <div class="swatch" data-accent="violet" title="Violet" style="background:#8b5cf6"></div>
+            <div class="swatch" data-accent="amber"  title="Amber"  style="background:#f59e0b"></div>
+            <div class="swatch" data-accent="rose"   title="Rose"   style="background:#f43f5e"></div>
+          </div>
+          <button id="resetData" class="btn small secondary" title="Reset all data">Reset</button>
+        </div>
       </div>
     </div>
   </header>
@@ -141,6 +178,37 @@
 <script>
 /* Local date helper to avoid UTC off-by-one */
 function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+
+/* ==== THEME STATE ==== */
+const THEME_MODE_KEY = 'gidget.theme.mode';   // 'system' | 'light' | 'dark'
+const THEME_ACCENT_KEY = 'gidget.theme.accent'; // 'mint' | 'blue' | 'violet' | 'amber' | 'rose'
+const ACCENTS = { mint:'#6EE7B7', blue:'#0EA5E9', violet:'#8b5cf6', amber:'#f59e0b', rose:'#f43f5e' };
+
+function applyTheme(mode, accent){
+  const root = document.documentElement;
+  if(mode==='light' || mode==='dark'){ root.setAttribute('data-mode', mode); }
+  else{ root.removeAttribute('data-mode'); }
+  const hex = ACCENTS[accent] || ACCENTS.mint;
+  root.style.setProperty('--acc', hex);
+}
+
+function initThemeControls(){
+  const savedMode = localStorage.getItem(THEME_MODE_KEY) || 'system';
+  const savedAcc = localStorage.getItem(THEME_ACCENT_KEY) || 'mint';
+  applyTheme(savedMode, savedAcc);
+  const bL=$('#themeLight'), bS=$('#themeSystem'), bD=$('#themeDark');
+  if(bL) bL.onclick=()=>{ localStorage.setItem(THEME_MODE_KEY,'light'); applyTheme('light', localStorage.getItem(THEME_ACCENT_KEY)||'mint'); };
+  if(bS) bS.onclick=()=>{ localStorage.setItem(THEME_MODE_KEY,'system'); applyTheme('system', localStorage.getItem(THEME_ACCENT_KEY)||'mint'); };
+  if(bD) bD.onclick=()=>{ localStorage.setItem(THEME_MODE_KEY,'dark'); applyTheme('dark', localStorage.getItem(THEME_ACCENT_KEY)||'mint'); };
+  $$('#themeControls .swatch').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const a = el.getAttribute('data-accent');
+      localStorage.setItem(THEME_ACCENT_KEY, a);
+      applyTheme(localStorage.getItem(THEME_MODE_KEY)||'system', a);
+    });
+  });
+}
+
 const KEY='gidget_site_v1';
 const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const todayISO=ymdLocal(new Date());
@@ -150,7 +218,17 @@ function toast(msg){ $('#toastText').textContent=msg; $('#toast').classList.add(
 function toMin(t){ if(!t) return null; const [H,M]=t.split(':').map(Number); return H*60+M } function fromMin(m){ const H=String(Math.floor(m/60)).padStart(2,'0'); const M=String(m%60).padStart(2,'0'); return `${H}:${M}` }
 
 /* Tabs */
-$$('.tab').forEach(tab=> tab.addEventListener('click', ()=>{ $$('.tab').forEach(t=>t.classList.remove('active')); tab.classList.add('active'); const id=tab.dataset.tab; $$('.tabpanel').forEach(p=>p.hidden=true); $('#panel-'+id).hidden=false; if(id==='trends') drawChart(); if(id==='calendar') renderCalendar(); if(id==='entries') renderTable(load()); }));
+$$('.tab').forEach(tab=> tab.addEventListener('click', ()=>{
+  $$('.tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  const id=tab.dataset.tab;
+  $$('.tabpanel').forEach(p=>p.hidden=true);
+  const panel = $('#panel-'+id);
+  panel.hidden = false;
+  panel.classList.add('anim-in');
+  panel.addEventListener('animationend', ()=> panel.classList.remove('anim-in'), {once:true});
+  if(id==='trends') drawChart(); if(id==='calendar') renderCalendar(); if(id==='entries') renderTable(load());
+}));
 
 /* Form */
 const dateEl=$('#date'), wakeEl=$('#wake'), weightEl=$('#weight'), moodEl=$('#mood'), notesEl=$('#notes'); dateEl.value=todayISO;
@@ -168,7 +246,7 @@ function renderToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#todayBo
 function renderStats(rows){ let s=0, d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){ s++; d.setDate(d.getDate()-1) } $('#streak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; $('#avg7').textContent=`7‑day avg: ${avg(rows,7)||'—'}` }
 
 /* Table */
-function renderTable(rows){ const tb=$('#table tbody'); if(!tb) return; tb.innerHTML=''; const f1=$('#filterFrom')?.value||'', f2=$('#filterTo')?.value||''; const filtered=rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date)); for(const r of filtered){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class=\"btn secondary small\" data-date=\"${r.date}\">Delete</button></td>`; tb.appendChild(tr) } $$('button[data-date]',tb).forEach(b=> b.addEventListener('click', e=>{ const d=e.target.getAttribute('data-date'); const left=load().filter(r=>r.date!==d); save(left); renderTable(left); drawChart(); renderCalendar(); toast('Entry deleted') })) }
+function renderTable(rows){ const tb=$('#table tbody'); if(!tb) return; tb.innerHTML=''; const f1=$('#filterFrom')?.value||'', f2=$('#filterTo')?.value||''; const filtered=rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date)); for(const r of filtered){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-date="${r.date}">Delete</button></td>`; tb.appendChild(tr) } $$('button[data-date]',tb).forEach(b=> b.addEventListener('click', e=>{ const d=e.target.getAttribute('data-date'); const left=load().filter(r=>r.date!==d); save(left); renderTable(left); drawChart(); renderCalendar(); toast('Entry deleted') })) }
 
 /* Trends */
 let rangeDays=7; $('#smooth')?.addEventListener('change', drawChart); $$('.rangeBtn').forEach(b=> b.addEventListener('click', ()=>{ rangeDays=+b.dataset.range; drawChart() }));
@@ -178,18 +256,37 @@ function drawChart(){ const rows=load().filter(r=>r.wake); const canvas=$('#char
 /* Calendar */
 let calRef=new Date();
 function ymd(d){ return ymdLocal(d) }
-function renderCalendar(){ const rows=load(); const box=$('#calendar'); if(!box) return; box.innerHTML=''; const y=calRef.getFullYear(), m=calRef.getMonth(); $('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long', year:'numeric'}); const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day); for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity = (d.getMonth()===m)?1:.45; const dISO=ymd(d); const rec=rows.find(r=>r.date===dISO); cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.wake||'—'}</div>`; cell.addEventListener('click',()=>{ $('#date').value=dISO; $('#wake').value=rec?.wake||''; $('#weight').value=rec?.weight||''; $('#mood').value=rec?.mood||''; $('#notes').value=rec?.notes||''; $$('.tab').forEach(t=>t.classList.remove('active')); $('[data-tab="log"]').classList.add('active'); $$('.tabpanel').forEach(p=>p.hidden=true); $('#panel-log').hidden=false; }); box.appendChild(cell) } }
+function renderCalendar(){ const rows=load(); const box=$('#calendar'); if(!box) return; box.innerHTML=''; const y=calRef.getFullYear(), m=calRef.getMonth(); $('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long', year:'numeric'}); const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day); for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity = (d.getMonth()===m)?1:.45; const dISO=ymd(d); const rec=rows.find(r=>r.date===dISO); cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.wake||'—'}</div>`; cell.addEventListener('click',()=>{ $('#date').value=dISO; $('#wake').value=rec?.wake||''; $('#weight').value=rec?.weight||''; $('#mood').value=rec?.mood||''; $('#notes').value=rec?.notes||''; $$('.tab').forEach(t=>t.classList.remove('active')); $('[data-tab="log"]').classList.add('active'); $$('.tabpanel').forEach(p=>p.hidden=true); const pl=$('#panel-log'); pl.hidden=false; pl.classList.add('anim-in'); pl.addEventListener('animationend', ()=> pl.classList.remove('anim-in'), {once:true}); }); box.appendChild(cell) } }
 $('#prevMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()-1); renderCalendar() })
 $('#nextMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderCalendar() })
 $('#todayMonth')?.addEventListener('click', ()=>{ calRef=new Date(); renderCalendar() })
 
 /* CSV */
-$('#exportCsv').onclick=()=>{ const rows=load(); const header='Date,Wake-Up Time,Weight (g),Mood,Notes\n'; const csv=header+rows.map(r=>[r.date,r.wake,r.weight,r.mood,JSON.stringify(r.notes||'').slice(1,-1)].join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click() }
-$('#importCsv').addEventListener('change', async (e)=>{ const file=e.target.files[0]; if(!file) return; const text=await file.text(); const lines=text.trim().split(/\r?\n/); lines.shift(); const rows=[]; for(const ln of lines){ const p=ln.split(','); rows.push({date:p[0],wake:p[1]||'',weight:p[2]||'',mood:p[3]||'',notes:p.slice(4).join(',')||''}) } save(rows); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); toast('Imported CSV') })
+$('#exportCsv').onclick=()=>{ const rows=load(); const header='Date,Wake-Up Time,Weight (g),Mood,Food,Sand,Notes\n'; const csv=header+rows.map(r=>[r.date,r.wake,r.weight,r.mood,r.food,r.sand,JSON.stringify(r.notes||'').slice(1,-1)].join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click() }
+$('#importCsv').addEventListener('change', async (e)=>{ const file=e.target.files[0]; if(!file) return; const text=await file.text(); const lines=text.trim().split(/\r?\n/); lines.shift(); const rows=[]; for(const ln of lines){ const p=ln.split(','); rows.push({date:p[0],wake:p[1]||'',weight:p[2]||'',mood:p[3]||'',food:p[4]||'',sand:p[5]||'',notes:p.slice(6).join(',')||''}) } save(rows); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); toast('Imported CSV') })
 
-/* Boot + SW */
-document.addEventListener('DOMContentLoaded', ()=>{ const rows=load(); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar() })
-if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js')); }
+/* Reset all data */
+$('#resetData')?.addEventListener('click', ()=>{
+  if(confirm('Reset all Gidget entries on this device? This cannot be undone.')){
+    localStorage.removeItem(KEY);
+    const rows=[]; renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar();
+    toast('All data cleared');
+  }
+});
+
+/* Boot: theme + app + SW message hook */
+document.addEventListener('DOMContentLoaded', ()=>{
+  initThemeControls();
+  const rows=load(); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar();
+});
+
+// Service worker registration + message listener for hard reload on activate
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'SW_ACTIVATED') location.reload();
+  });
+}
 
 /* Install help */
 $('#installInfo').onclick=()=> alert('On iPhone: open this URL in Safari → Share → Add to Home Screen.');

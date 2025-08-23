@@ -1,6 +1,6 @@
 // --- Gidget Service Worker (update-friendly) ---
-const CACHE_STATIC = 'gidget-static-v4';
-const CACHE_HTML   = 'gidget-html-v4';
+const CACHE_STATIC = 'gidget-static-v5';
+const CACHE_HTML   = 'gidget-html-v5';
 
 const ASSETS = [
   './',
@@ -18,18 +18,23 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: remove old caches and take control
+// Activate: remove old caches, take control, and notify pages
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
         keys
           .filter((k) => ![CACHE_STATIC, CACHE_HTML].includes(k))
           .map((k) => caches.delete(k))
-      )
-    )
+      );
+      await self.clients.claim();
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clients) {
+        client.postMessage({ type: 'SW_ACTIVATED', version: 'v5' });
+      }
+    })()
   );
-  self.clients.claim();
 });
 
 // Fetch:
@@ -77,7 +82,6 @@ self.addEventListener('fetch', (event) => {
           cache.put(req, fresh.clone());
           return fresh;
         } catch {
-          // Fallback to any cached version of index.html if helpful
           const fallback = await caches.match('./index.html');
           return fallback || new Response('Offline', { status: 503, statusText: 'Offline' });
         }
