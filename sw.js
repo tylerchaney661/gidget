@@ -28,27 +28,24 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
   const url = new URL(req.url);
 
-  // If caller passes ?nosw=1, completely bypass SW for this request
+  // Bypass per request: ?nosw=1
   if (url.searchParams.get('nosw') === '1') {
     event.respondWith(fetch(req));
     return;
   }
 
-  // For navigations (HTML), always try the network first with no-store to avoid stale index.html/JS
-  if (event.request.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
+  // HTML: network-first, cache as fallback
+  if (event.request.mode === 'navigate' || (req.headers.get('accept')||'').includes('text/html')) {
     event.respondWith(
       fetch(req, { cache: 'no-store' })
         .then(async (fresh) => {
-          // keep a copy for offline
           const ch = await caches.open(CACHE_HTML);
           ch.put(req, fresh.clone());
           return fresh;
         })
         .catch(async () => {
-          // offline fallback to cached HTML or app shell
           const ch = await caches.open(CACHE_HTML);
           return (await ch.match(req)) || (await caches.match('./index.html')) || new Response('Offline', { status: 503 });
         })
@@ -56,7 +53,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For other GET requests, go network-first, cache on success, fallback to cache if offline
+  // Other GET: network-first then cache; fallback to cache when offline
   event.respondWith(
     fetch(req)
       .then(async (fresh) => {
