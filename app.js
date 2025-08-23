@@ -1,10 +1,9 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (stable, no optional chaining)
-   - Theme + header hide/shrink
-   - Tabs + native month pickers (iOS-safe)
-   - Wake & Steps: log, trends (tap to inspect), calendar, entries
-   - CSV import/export
-   - PWA register (expects sw.js v18)
+   Gidget · Hamster Tracker — app.js (calendar fixes, stable)
+   - No optional chaining; works in strict TS checks
+   - Wake & Steps calendars: click to open detail modal + edit
+   - Month nav (Prev/Today/Next) + native month picker (iOS-safe)
+   - Everything else unchanged (themes, tabs, trends, CSV, PWA)
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -21,9 +20,7 @@ function closestEl(el, selector){
 }
 
 function ymd(d){
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,'0');
-  const dd=String(d.getDate()).padStart(2,'0');
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${dd}`;
 }
 function toMin(t){ if(!t) return null; const p=t.split(':'); return (+p[0])*60 + (+p[1]); }
@@ -63,8 +60,9 @@ function initTheme(){
 
   $$('.swatch').forEach(function(s){
     s.onclick = function(){
-      localStorage.setItem(ACC_KEY, s.getAttribute('data-accent'));
-      applyTheme(localStorage.getItem(MODE_KEY)||'system', s.getAttribute('data-accent'));
+      const acc=s.getAttribute('data-accent');
+      localStorage.setItem(ACC_KEY, acc);
+      applyTheme(localStorage.getItem(MODE_KEY)||'system', acc);
     };
   });
 }
@@ -215,16 +213,11 @@ function renderWakeTable(rows){
 }
 
 let wakeRange=7, wakePts=[];
-
 document.addEventListener('click', function(e){
   const b = closestEl(e, '.rangeBtn');
   if(b){ wakeRange = +b.getAttribute('data-range'); drawWakeChart(); }
 });
-
-(function(){
-  const el = $('#smooth');
-  if(el) el.addEventListener('change', drawWakeChart);
-})();
+(function(){ const el=$('#smooth'); if(el) el.addEventListener('change', drawWakeChart); })();
 
 function drawWakeChart(){
   const rows=loadWake().filter(function(r){ return r.wake; });
@@ -354,6 +347,7 @@ function drawWakeChart(){
   cv.addEventListener('touchstart', handle, {passive:true});
 }
 
+/* --------- WAKE calendar (with pop-out modal) -------- */
 function renderWakeCalendar(){
   const rows=loadWake();
   const box=$('#calendar'); if(!box) return; box.innerHTML='';
@@ -369,27 +363,53 @@ function renderWakeCalendar(){
     const d=new Date(start); d.setDate(start.getDate()+i);
     const iso=ymd(d);
     const rec=rows.find(function(r){ return r.date===iso; });
+
     const cell=document.createElement('div');
     cell.className='cell';
     cell.style.opacity = (d.getMonth()===m)?1:.45;
     cell.innerHTML = '<div class="d">'+d.getDate()+'</div><div class="tiny mt">'+(rec&&rec.wake?rec.wake:'—')+'</div>';
+
     cell.onclick=function(){
-      activateTab('log');
-      $('#date').value=iso; $('#wake').value=rec&&rec.wake||''; $('#weight').value=rec&&rec.weight||''; $('#mood').value=rec&&rec.mood||''; $('#notes').value=rec&&rec.notes||'';
+      var html = '';
+      if(rec){
+        html =
+          '<div><b>Date</b>: '+iso+'</div>'+
+          '<div><b>Wake</b>: '+(rec.wake||'—')+'</div>'+
+          '<div><b>Weight</b>: '+(rec.weight||'—')+' g</div>'+
+          '<div><b>Mood</b>: '+(rec.mood||'—')+'</div>'+
+          '<div class="mt"><b>Notes</b>: '+(rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—')+'</div>'+
+          '<div class="row mt end"><button id="editDayBtn" class="btn solid">Edit this day</button></div>';
+      } else {
+        html =
+          '<div>No wake entry for '+iso+'.</div>'+
+          '<div class="row mt end"><button id="editDayBtn" class="btn solid">Add entry</button></div>';
+      }
+
+      openModal('Wake • '+iso, html);
+
+      var edit=document.getElementById('editDayBtn');
+      if(edit){
+        edit.onclick=function(){
+          activateTab('log');
+          $('#date').value=iso;
+          $('#wake').value=(rec&&rec.wake)||'';
+          $('#weight').value=(rec&&rec.weight)||'';
+          $('#mood').value=(rec&&rec.mood)||'';
+          $('#notes').value=(rec&&rec.notes)||'';
+          $('#modal').hidden=true;
+        };
+      }
     };
+
+    // keyboard accessibility
+    cell.tabIndex = 0;
+    cell.addEventListener('keydown', function(e){ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); cell.click(); }});
+
     box.appendChild(cell);
   }
 }
 
-function afterWake(rows){
-  renderWakeToday(rows);
-  renderWakeStats(rows);
-  renderWakeTable(rows);
-  drawWakeChart();
-  renderWakeCalendar();
-}
-
-/* =================== Steps module =================== */
+/* ====== Steps module (unchanged except calendar pop-out) ====== */
 let stepsCalRef=new Date();
 let stepsRange=7;
 
@@ -407,9 +427,7 @@ function initStepsForm(){
 
   const clr=$('#stepsClear'); if(clr) clr.onclick=function(){ $('#stepsDate').value=todayISO; $('#stepsCount').value=''; $('#stepsNotes').value=''; };
 
-  (function(){
-    const el=$('#stepsSmooth'); if(el) el.addEventListener('change', drawStepsChart);
-  })();
+  (function(){ const el=$('#stepsSmooth'); if(el) el.addEventListener('change', drawStepsChart); })();
 
   document.addEventListener('click', function(e){
     const b = closestEl(e, '.stepsRangeBtn');
@@ -534,37 +552,77 @@ function drawStepsChart(){
   cx.stroke();
 }
 
+/* -------- STEPS calendar (with pop-out modal) ------- */
 function renderStepsCalendar(){
-  const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return;
-  box.innerHTML='';
+  const rows=loadSteps();
+  const box=$('#stepsCalendar'); if(!box) return; box.innerHTML='';
   const title=$('#stepsCalTitle'); if(title) title.textContent=stepsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
 
   const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth();
-  const first=new Date(y,m,1); const start=new Date(first);
-  const lead=(first.getDay()+6)%7; start.setDate(1-lead);
+  const first=new Date(y,m,1);
+  const start=new Date(first);
+  const lead=(first.getDay()+6)%7;
+  start.setDate(1-lead);
 
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i);
     const iso=ymd(d);
     const rec=rows.find(function(r){ return r.date===iso; });
+
     const cell=document.createElement('div');
     cell.className='cell';
     cell.style.opacity=(d.getMonth()===m)?1:.45;
     cell.innerHTML='<div class="d">'+d.getDate()+'</div><div class="tiny mt">'+(rec&&rec.steps?rec.steps:'—')+'</div>';
+
     cell.onclick=function(){
-      activateTab('steps-log');
-      $('#stepsDate').value=iso; $('#stepsCount').value=rec&&rec.steps||''; $('#stepsNotes').value=rec&&rec.notes||'';
+      var html='';
+      if(rec){
+        html =
+          '<div><b>Date</b>: '+iso+'</div>'+
+          '<div><b>Steps</b>: '+(rec.steps||'—')+'</div>'+
+          '<div class="mt"><b>Notes</b>: '+(rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—')+'</div>'+
+          '<div class="row mt end"><button id="editStepsDayBtn" class="btn solid">Edit this day</button></div>';
+      } else {
+        html =
+          '<div>No steps entry for '+iso+'.</div>'+
+          '<div class="row mt end"><button id="editStepsDayBtn" class="btn solid">Add entry</button></div>';
+      }
+
+      openModal('Steps • '+iso, html);
+
+      var edit=document.getElementById('editStepsDayBtn');
+      if(edit){
+        edit.onclick=function(){
+          activateTab('steps-log');
+          $('#stepsDate').value=iso;
+          $('#stepsCount').value=(rec&&rec.steps)||'';
+          $('#stepsNotes').value=(rec&&rec.notes)||'';
+          $('#modal').hidden=true;
+        };
+      }
     };
+
+    // keyboard accessibility
+    cell.tabIndex = 0;
+    cell.addEventListener('keydown', function(e){ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); cell.click(); }});
+
     box.appendChild(cell);
   }
 }
 
-function afterSteps(rows){
-  renderStepsToday(rows);
-  renderStepsStats(rows);
-  renderStepsTable(rows);
-  drawStepsChart();
-  renderStepsCalendar();
+/* ------------- Calendar NAV buttons (both) ---------- */
+function bindCalendarNav(){
+  // Wake calendar
+  const prev=$('#prevMonth'), next=$('#nextMonth'), today=$('#todayMonth');
+  if(prev)  prev.onclick = function(){ calRef = new Date(calRef.getFullYear(), calRef.getMonth()-1, 1); renderWakeCalendar(); };
+  if(next)  next.onclick = function(){ calRef = new Date(calRef.getFullYear(), calRef.getMonth()+1, 1); renderWakeCalendar(); };
+  if(today) today.onclick= function(){ calRef = new Date(); calRef.setDate(1); renderWakeCalendar(); };
+
+  // Steps calendar
+  const sprev=$('#stepsPrevMonth'), snext=$('#stepsNextMonth'), stoday=$('#stepsTodayMonth');
+  if(sprev)  sprev.onclick = function(){ stepsCalRef = new Date(stepsCalRef.getFullYear(), stepsCalRef.getMonth()-1, 1); renderStepsCalendar(); };
+  if(snext)  snext.onclick = function(){ stepsCalRef = new Date(stepsCalRef.getFullYear(), stepsCalRef.getMonth()+1, 1); renderStepsCalendar(); };
+  if(stoday) stoday.onclick= function(){ stepsCalRef = new Date(); stepsCalRef.setDate(1); renderStepsCalendar(); };
 }
 
 /* ---------------- CSV import / export --------------- */
@@ -616,6 +674,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   monthPicker('#calTitle',      '#monthPicker',      function(){return calRef;},      function(d){ calRef=d; renderWakeCalendar(); });
   monthPicker('#stepsCalTitle', '#stepsMonthPicker', function(){return stepsCalRef;}, function(d){ stepsCalRef=d; renderStepsCalendar(); });
+  bindCalendarNav();
 
   initWakeForm();
   initStepsForm();
@@ -623,7 +682,7 @@ document.addEventListener('DOMContentLoaded', function(){
   afterWake(loadWake());
   afterSteps(loadSteps());
 
-  // PWA (sw v18)
+  // PWA (keeps your current sw.js version param)
   if('serviceWorker' in navigator){
     const qs=new URL(window.location.href).searchParams;
     if(!(qs.has('nosw') || qs.get('nosw')==='1')){
