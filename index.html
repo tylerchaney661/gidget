@@ -4,166 +4,95 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Gidget · Hamster Tracker</title>
-
-<!-- PWA -->
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#0B0F14" />
-<meta name="x-gidget-version" content="2025-08-23-10" />
+<meta name="x-gidget-version" content="2025-08-23-11" />
 
 <style>
-  /* ===== TOKENS ===== */
   :root{
     --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2;
     --acc:#6EE7B7; --acc-ink:#06291F;
     --radius:14px; --shadow:0 12px 34px rgba(0,0,0,.35); --ring:0 0 0 2px rgba(110,231,183,.35);
-    --blur:8px; --ease: cubic-bezier(.2,.65,.2,1);
+    --blur:8px; --ease:cubic-bezier(.2,.65,.2,1);
   }
   @media (prefers-color-scheme: light){
     :root{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; --acc:#0EA5E9; --acc-ink:#00131C; --shadow:0 12px 34px rgba(0,0,0,.08); --ring:0 0 0 2px rgba(14,165,233,.25);}
   }
 
-  /* ===== GLOBAL ===== */
   *{box-sizing:border-box}
-  html{ scroll-behavior:smooth; height:100% }
+  html{scroll-behavior:smooth; height:100%}
   body{
-    min-height:100%;
-    margin:0; color:var(--fg);
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    margin:0; min-height:100%; color:var(--fg);
+    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
     background:
       radial-gradient(1200px 800px at 80% -200px, color-mix(in oklab, var(--acc) 20%, transparent), transparent),
       radial-gradient(800px 600px at -10% -100px, rgba(255,255,255,.05), transparent),
       var(--bg);
-    animation: bodyFade .35s var(--ease) both;
   }
-  @keyframes bodyFade{ from{ opacity:.0; transform:translateY(4px)} to{ opacity:1; transform:none} }
 
-  /* ===== HEADER (shrink on scroll) ===== */
+  /* Header (sticky + shrink) */
   header{
-    position:sticky; top:0; z-index:50;
-    backdrop-filter: blur(var(--blur));
-    background: color-mix(in oklab, var(--bg) 86%, transparent);
+    position:sticky; top:0; z-index:1000;
+    backdrop-filter:blur(var(--blur));
+    background:color-mix(in oklab, var(--bg) 86%, transparent);
     border-bottom:1px solid var(--line);
-    transition: background .3s var(--ease), backdrop-filter .3s var(--ease), transform .3s var(--ease);
-    will-change: transform, backdrop-filter, background;
+    transition:background .28s var(--ease), backdrop-filter .28s var(--ease);
+    will-change:backdrop-filter,background;
   }
-  .nav{ max-width:1100px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; transition: padding .25s var(--ease); }
-  .brand{ display:flex; gap:10px; align-items:center }
-  .badge{
-    width:30px; height:30px; border-radius:10px;
-    background:linear-gradient(145deg, color-mix(in oklab, var(--acc) 90%, white), var(--acc));
-    display:grid; place-items:center; color:var(--acc-ink); font-weight:900; letter-spacing:.2px;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.25), 0 8px 18px rgba(0,0,0,.25);
-    transform: translateZ(0);
-    transition: transform .25s var(--ease), box-shadow .25s var(--ease), width .25s var(--ease), height .25s var(--ease);
-  }
-  .title{ font-weight:800; transition: transform .25s var(--ease), opacity .25s var(--ease); }
-  .muted{ color:var(--muted) }
+  .nav{max-width:1100px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;transition:padding .22s var(--ease)}
+  header.shrink .nav{padding:6px 16px}
+  .brand{display:flex;gap:10px;align-items:center}
+  .badge{width:30px;height:30px;border-radius:10px;background:linear-gradient(145deg,color-mix(in oklab,var(--acc) 90%,white),var(--acc));display:grid;place-items:center;color:var(--acc-ink);font-weight:900;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25),0 8px 18px rgba(0,0,0,.25);transition:all .22s var(--ease)}
+  header.shrink .badge{width:24px;height:24px}
+  .title{font-weight:800;transition:transform .22s var(--ease),opacity .22s var(--ease)}
+  header.shrink .title{transform:translateY(-1px) scale(.98);opacity:.95}
+  .muted{color:var(--muted)}
 
-  /* Shrunk state */
-  header.shrink .nav { padding: 6px 16px; }
-  header.shrink .badge { width:24px; height:24px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.2), 0 6px 14px rgba(0,0,0,.2); }
-  header.shrink .title { transform: translateY(-1px) scale(.98); opacity:.95; }
-  header.shrink { backdrop-filter: blur(calc(var(--blur) + 2px)); background: color-mix(in oklab, var(--bg) 92%, transparent); }
+  .btn{appearance:none;border:0;border-radius:12px;padding:10px 14px;background:var(--acc);color:var(--acc-ink);font-weight:700;cursor:pointer;box-shadow:var(--shadow);transition:transform .16s var(--ease),box-shadow .16s var(--ease)}
+  .btn.small{padding:8px 10px;font-size:12px}
+  .btn.secondary{background:transparent;color:var(--fg);border:1px solid var(--line);box-shadow:none}
+  .btn:active{transform:translateY(1px) scale(.99)}
 
-  /* ===== UI ===== */
-  .btn{
-    appearance:none; border:0; border-radius:12px; padding:10px 14px;
-    background:var(--acc); color:var(--acc-ink); font-weight:700; cursor:pointer;
-    box-shadow:var(--shadow); transform: translateY(0);
-    transition: transform .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
-    position:relative; overflow:hidden;
-  }
-  .btn.secondary{ background:transparent; color:var(--fg); border:1px solid var(--line); box-shadow:none; font-weight:600 }
-  .btn.small{ padding:8px 10px; font-size:12px }
-  .btn:active{ transform: translateY(1px) scale(.99) }
-  .btn::after{
-    content:""; position:absolute; inset:auto 0 0 0; height:0; background:color-mix(in oklab, var(--acc) 20%, white);
-    opacity:.0; transition: opacity .25s var(--ease), height .25s var(--ease);
-  }
-  .btn:active::after{ height:100%; opacity:.25 }
+  main{max-width:1100px;margin:0 auto;padding:16px}
+  .grid{display:grid;grid-template-columns:1.4fr .9fr;gap:16px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
 
-  main{ max-width:1100px; margin:0 auto; padding:16px }
-  .grid{ display:grid; grid-template-columns:1.4fr .9fr; gap:16px }
-  @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
+  .card{background:linear-gradient(180deg,color-mix(in oklab,var(--card) 94%,black),var(--card));border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+  label{display:block;font-size:13px;color:var(--muted);margin:8px 0 6px}
+  input,select,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);transition:border-color .2s,box-shadow .2s}
+  input:focus,select:focus,textarea:focus{outline:none;box-shadow:var(--ring);border-color:transparent}
+  textarea{min-height:90px;resize:vertical}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{flex:1;min-width:220px}
 
-  .card{
-    background:linear-gradient(180deg, color-mix(in oklab, var(--card) 94%, black), var(--card));
-    border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow);
-    animation: cardIn .35s var(--ease) both;
-  }
-  @keyframes cardIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
-  .card:hover{ border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .tab{padding:8px 12px;border:1px solid var(--line);border-radius:999px;cursor:pointer;color:var(--muted);user-select:none}
+  .tab.active{background:var(--acc);color:var(--acc-ink);border-color:transparent;font-weight:800}
 
-  label{ display:block; font-size:13px; color:var(--muted); margin:8px 0 6px }
-  input, select, textarea{
-    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--fg);
-    transition: border-color .2s var(--ease), box-shadow .2s var(--ease), background .2s var(--ease);
-  }
-  input:focus, select:focus, textarea:focus{ outline:none; box-shadow: var(--ring); border-color: transparent }
-  textarea{ min-height:90px; resize:vertical }
-  .row{ display:flex; gap:12px; flex-wrap:wrap }
-  .col{ flex:1; min-width:220px }
+  table{width:100%;border-collapse:collapse;margin-top:8px;border-radius:12px;overflow:hidden}
+  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+  tr:hover td{background:color-mix(in oklab,var(--bg) 92%,var(--acc) 8%)}
 
-  table{ width:100%; border-collapse:collapse; margin-top:8px; border-radius:12px; overflow:hidden }
-  th,td{ padding:10px; border-bottom:1px solid var(--line); text-align:left; font-size:14px }
-  tr:hover td{ background: color-mix(in oklab, var(--bg) 92%, var(--acc) 8%) }
+  canvas{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+  @media(max-width:700px){canvas{height:340px} table{display:block;overflow-x:auto;white-space:nowrap} th,td{min-width:120px}}
 
-  .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px }
-  .tab{
-    padding:8px 12px; border:1px solid var(--line); border-radius:999px; cursor:pointer; color:var(--muted);
-    transition: transform .2s var(--ease), background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
-  }
-  .tab:hover{ transform: translateY(-1px) }
-  .tab.active{ background:var(--acc); color:var(--acc-ink); border-color:transparent; font-weight:800 }
-
-  canvas{
-    width:100%; height:260px; border:1px solid var(--line); border-radius:12px; background:var(--bg);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-    transition: height .2s var(--ease);
-  }
-
-  .calendar{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px }
-  .cal-head{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:6px; color:var(--muted); font-size:12px }
-  .cell{ min-height:84px; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer; transition: transform .15s var(--ease), border-color .15s var(--ease); }
-  .cell:hover{ transform: translateY(-1px); border-color: color-mix(in oklab, var(--acc) 30%, var(--line)) }
-  .cell .d{ font-weight:700; font-size:12px; color:var(--muted) }
-
-  .pill{ display:inline-block; padding:6px 10px; border-radius:9999px; border:1px solid var(--line); font-size:12px; color:var(--muted) }
-  .toast{ position:fixed; inset:auto 16px 16px 16px; display:none }
-  .toast .inner{ background:var(--card); border:1px solid var(--line); padding:12px 14px; border-radius:14px; box-shadow:var(--shadow) }
-  .toast.show{ display:block; animation: toastIn .25s var(--ease) both }
-  @keyframes toastIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
-
-  .anim-in{ animation: fadeSlide .28s var(--ease) both; }
-  @keyframes fadeSlide{ from{ opacity:.0; transform: translateY(6px) } to{ opacity:1; transform: translateY(0) } }
-
-  /* Theme palette + controls */
-  :root[data-mode="dark"]{ --bg:#0B0F14; --card:#0F141A; --line:#1D2A36; --fg:#E9EEF5; --muted:#9FB0C2; }
-  :root[data-mode="light"]{ --bg:#F6F8FB; --card:#FFFFFF; --line:#E6ECF2; --fg:#0F1720; --muted:#516072; }
-  .theme-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:8px }
-  .theme-controls .group{ display:flex; gap:6px; padding:6px; border:1px solid var(--line); border-radius:12px; background:var(--card) }
-  .theme-controls .swatch{ width:22px; height:22px; border-radius:999px; border:1px solid var(--line); cursor:pointer; transition: transform .15s var(--ease) }
-  .theme-controls .swatch:active{ transform: scale(.95) }
+  .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;color:var(--muted);font-size:12px}
+  .cell{min-height:84px;border:1px solid var(--line);border-radius:12px;padding:8px;cursor:pointer;transition:transform .15s,border-color .15s}
+  .cell:hover{transform:translateY(-1px);border-color:color-mix(in oklab,var(--acc) 30%,var(--line))}
+  .cell .d{font-weight:700;font-size:12px;color:var(--muted)}
 
   /* Clickable month titles */
-  #calTitle, #stepsCalTitle{ cursor:pointer; position:relative; }
-  #calTitle::after, #stepsCalTitle::after{ content:"▾"; font-size:.9em; margin-left:.35em; opacity:.7; }
-  #calTitle:hover, #stepsCalTitle:hover{ text-decoration:underline; }
-
-  /* Mobile tables & charts */
-  @media (max-width: 700px){
-    table{ display:block; overflow-x:auto; white-space:nowrap; }
-    th,td{ min-width:120px; }
-    canvas{ height:340px; }
-  }
+  #calTitle,#stepsCalTitle{cursor:pointer;position:relative}
+  #calTitle::after,#stepsCalTitle::after{content:"▾";font-size:.9em;margin-left:.35em;opacity:.7}
 </style>
 </head>
 <body>
   <header id="topbar">
     <div class="nav">
       <div class="brand">
-        <div class="badge" aria-hidden="true">G</div>
+        <div class="badge">G</div>
         <div>
           <div class="title">Gidget · Hamster Tracker</div>
           <div class="muted" style="font-size:12px">Wake-up · Steps · Trends · Calendar · Offline</div>
@@ -173,28 +102,12 @@
         <button id="exportCsv" class="btn secondary">Export CSV</button>
         <label class="btn secondary" style="padding:10px 12px"><input type="file" id="importCsv" accept=".csv" style="display:none">Import CSV</label>
         <button id="installInfo" class="btn">Install</button>
-
-        <div id="themeControls" class="theme-controls">
-          <div class="group" role="group" aria-label="Theme mode">
-            <button id="themeLight" class="btn small secondary" title="Light">Light</button>
-            <button id="themeSystem" class="btn small secondary" title="System">System</button>
-            <button id="themeDark" class="btn small secondary" title="Dark">Dark</button>
-          </div>
-          <div class="group" role="group" aria-label="Accent">
-            <div class="swatch" data-accent="mint"   title="Mint"   style="background:#6EE7B7"></div>
-            <div class="swatch" data-accent="blue"   title="Blue"   style="background:#0EA5E9"></div>
-            <div class="swatch" data-accent="violet" title="Violet" style="background:#8b5cf6"></div>
-            <div class="swatch" data-accent="amber"  title="Amber"  style="background:#f59e0b"></div>
-            <div class="swatch" data-accent="rose"   title="Rose"   style="background:#f43f5e"></div>
-          </div>
-          <button id="resetData" class="btn small secondary" title="Reset all data">Reset</button>
-        </div>
       </div>
     </div>
   </header>
 
   <main>
-    <div class="tabs">
+    <div class="tabs" id="tabs">
       <div class="tab active" data-tab="log">Log</div>
       <div class="tab" data-tab="trends">Trends</div>
       <div class="tab" data-tab="calendar">Calendar</div>
@@ -214,13 +127,13 @@
           <div class="col"><label for="wake">Wake‑Up Time</label><div class="row"><input id="wake" type="time" style="flex:1"><button id="nowBtn" class="btn secondary">Now</button></div></div>
         </div>
         <div class="row">
-          <div class="col"><label for="weight">Weight (g)</label><input id="weight" type="number" min="0" step="1" placeholder="Optional"></div>
+          <div class="col"><label for="weight">Weight (g)</label><input id="weight" type="number" min="0" step="1"></div>
           <div class="col"><label for="mood">Mood</label><select id="mood"><option value="">—</option><option>Calm</option><option>Curious</option><option>Energetic</option><option>Grumpy</option><option>Sleepy</option></select></div>
         </div>
         <label for="notes">Notes</label><textarea id="notes" placeholder="Behaviour, room temp, cage changes…"></textarea>
         <div class="row" style="margin-top:12px"><button id="save" class="btn">Save Entry</button><button id="clearForm" class="btn secondary">Clear</button></div>
         <div class="muted" id="todayBox" style="margin-top:8px">—</div>
-        <div class="row" style="margin-top:8px"><span class="pill" id="streak">Streak: 0 days</span><span class="pill" id="avg7">7‑day avg: —</span></div>
+        <div class="row" style="margin-top:8px"><span id="streak" class="muted">Streak: 0</span><span id="avg7" class="muted">7‑day avg: —</span></div>
       </section>
 
       <section class="card">
@@ -235,7 +148,7 @@
 
     <!-- Wake Trends -->
     <section class="card tabpanel" id="panel-trends" hidden>
-      <div class="row" style="align-items:center; justify-content:space-between">
+      <div class="row" style="align-items:center;justify-content:space-between">
         <div class="row">
           <button class="btn small secondary rangeBtn" data-range="7">Week</button>
           <button class="btn small secondary rangeBtn" data-range="30">Month</button>
@@ -252,7 +165,7 @@
 
     <!-- Wake Calendar -->
     <section class="card tabpanel" id="panel-calendar" hidden>
-      <div class="row" style="justify-content:space-between; align-items:center">
+      <div class="row" style="justify-content:space-between;align-items:center">
         <div class="row"><button id="prevMonth" class="btn small secondary">‹</button><button id="todayMonth" class="btn small secondary">Today</button><button id="nextMonth" class="btn small secondary">›</button></div>
         <div>
           <div class="title" id="calTitle">—</div>
@@ -266,7 +179,6 @@
     <!-- Wake Entries -->
     <section class="card tabpanel" id="panel-entries" hidden>
       <h3>Entries</h3>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">Tip: swipe horizontally if the table is wider than your screen</div>
       <table id="table"><thead><tr><th>Date</th><th>Wake‑Up</th><th>Weight</th><th>Mood</th><th>Food</th><th>Sand</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
     </section>
 
@@ -281,13 +193,13 @@
         <label for="stepsNotes">Notes</label><textarea id="stepsNotes" placeholder="Morning notes…"></textarea>
         <div class="row" style="margin-top:12px"><button id="stepsSave" class="btn">Save Steps</button><button id="stepsClear" class="btn secondary">Clear</button></div>
         <div class="muted" id="stepsTodayBox" style="margin-top:8px">—</div>
-        <div class="row" style="margin-top:8px"><span class="pill" id="stepsStreak">Streak: 0 days</span><span class="pill" id="stepsAvg7">7‑day avg: —</span></div>
+        <div class="row" style="margin-top:8px"><span id="stepsStreak" class="muted">Streak: 0</span><span id="stepsAvg7" class="muted">7‑day avg: —</span></div>
       </section>
     </section>
 
     <!-- Steps Trends -->
     <section class="card tabpanel" id="panel-steps-trends" hidden>
-      <div class="row" style="align-items:center; justify-content:space-between">
+      <div class="row" style="align-items:center;justify-content:space-between">
         <div class="row">
           <button class="btn small secondary stepsRangeBtn" data-range="7">Week</button>
           <button class="btn small secondary stepsRangeBtn" data-range="30">Month</button>
@@ -304,7 +216,7 @@
 
     <!-- Steps Calendar -->
     <section class="card tabpanel" id="panel-steps-calendar" hidden>
-      <div class="row" style="justify-content:space-between; align-items:center">
+      <div class="row" style="justify-content:space-between;align-items:center">
         <div class="row"><button id="stepsPrevMonth" class="btn small secondary">‹</button><button id="stepsTodayMonth" class="btn small secondary">Today</button><button id="stepsNextMonth" class="btn small secondary">›</button></div>
         <div>
           <div class="title" id="stepsCalTitle">—</div>
@@ -318,22 +230,23 @@
     <!-- Steps Entries -->
     <section class="card tabpanel" id="panel-steps-entries" hidden>
       <h3>Steps Entries</h3>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">Tip: swipe horizontally if the table is wider than your screen</div>
       <table id="stepsTable"><thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead><tbody></tbody></table>
     </section>
 
-    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-10 • SW ?v=15 • add “?nosw=1” to bypass</div>
+    <div id="ver" class="muted" style="text-align:center;margin-top:14px">Version 2025-08-23-11 • SW ?v=16 • add “?nosw=1” to bypass</div>
   </main>
 
-  <div class="toast" id="toast"><div class="inner" id="toastText">Saved</div></div>
+  <div class="toast" id="toast" style="position:fixed;left:16px;right:16px;bottom:16px;display:none;z-index:1100">
+    <div class="card" id="toastText">Saved</div>
+  </div>
 
   <!-- Hidden native month pickers -->
   <input type="month" id="monthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none" />
   <input type="month" id="stepsMonthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none" />
 
   <!-- Modal -->
-  <div id="modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:40">
-    <div id="modalCard" class="card" style="max-width:520px;width:92%;transform:translateY(6px);opacity:0">
+  <div id="modal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:1200">
+    <div id="modalCard" class="card" style="max-width:520px;width:92%">
       <div id="modalTitle" class="title" style="margin-bottom:8px">Details</div>
       <div id="modalBody" class="muted">—</div>
       <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -345,117 +258,128 @@
   </div>
 
 <script>
-/* ===== Utils ===== */
-function ymdLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+/* ---------- helpers ---------- */
 const $=(s,r=document)=>r.querySelector(s); const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-function toMin(t){ if(!t) return null; const [H,M]=t.split(':').map(Number); return H*60+M } function fromMin(m){ const H=String(Math.floor(m/60)).padStart(2,'0'); const M=String(m%60).padStart(2,'0'); return `${H}:${M}` }
-function toast(msg){ $('#toastText').textContent=msg; $('#toast').classList.add('show'); setTimeout(()=>$('#toast').classList.remove('show'),1400) }
+function ymdLocal(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`;}
+function toMin(t){if(!t) return null; const [H,M]=t.split(':').map(Number); return H*60+M}
+function fromMin(m){const H=String(Math.floor(m/60)).padStart(2,'0'); const M=String(m%60).padStart(2,'0'); return `${H}:${M}`}
+function toast(msg){$('#toastText').textContent=msg; const t=$('#toast'); t.style.display='block'; setTimeout(()=>t.style.display='none',1400)}
+function setupCanvas(canvas,baseCssHeight=260){const cssH=(innerWidth<=700)?340:baseCssHeight; canvas.style.width='100%'; canvas.style.height=cssH+'px'; const dpr=devicePixelRatio||1; const rect=canvas.getBoundingClientRect(); canvas.width=Math.max(1,Math.round(rect.width*dpr)); canvas.height=Math.max(1,Math.round(cssH*dpr)); return {W:rect.width,H:cssH,dpr};}
 
-/* Canvas: responsive size + HiDPI crispness */
-function setupCanvas(canvas, baseCssHeight=260){
-  const cssH = (window.innerWidth <= 700) ? 340 : baseCssHeight;
-  canvas.style.width = '100%';
-  canvas.style.height = cssH + 'px';
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width  = Math.max(1, Math.round(rect.width * dpr));
-  canvas.height = Math.max(1, Math.round(cssH * dpr));
-  return { W: rect.width, H: cssH, dpr };
-}
-
-/* Modal helpers */
-function openModal({title, html, onEdit, onDelete}){
-  const overlay = $('#modal'), card = $('#modalCard');
-  $('#modalTitle').textContent = title;
-  $('#modalBody').innerHTML = html;
-  overlay.style.display = 'flex';
-  requestAnimationFrame(()=>{ card.style.transition='all .22s var(--ease)'; card.style.transform='translateY(0)'; card.style.opacity='1'; });
-  $('#modalClose').onclick = closeModal;
-  $('#modalEdit').onclick = ()=>{ closeModal(); onEdit?.(); };
-  $('#modalDelete').onclick = ()=>{ if(confirm('Delete this entry?')){ onDelete?.(); closeModal(); } };
-  overlay.onclick = (e)=>{ if(e.target===overlay) closeModal(); };
-  document.onkeydown = (e)=>{ if(e.key==='Escape') closeModal(); };
-}
-function closeModal(){ const overlay=$('#modal'), card=$('#modalCard'); card.style.transform='translateY(6px)'; card.style.opacity='0'; setTimeout(()=>{ overlay.style.display='none'; document.onkeydown=null; }, 180); }
-
-/* ===== Theme ===== */
+/* ---------- theme (kept minimal) ---------- */
 const THEME_MODE_KEY='gidget.theme.mode', THEME_ACCENT_KEY='gidget.theme.accent', ACCENTS={mint:'#6EE7B7',blue:'#0EA5E9',violet:'#8b5cf6',amber:'#f59e0b',rose:'#f43f5e'};
-function applyTheme(mode,accent){ const root=document.documentElement; if(mode==='light'||mode==='dark') root.setAttribute('data-mode',mode); else root.removeAttribute('data-mode'); root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.mint); }
-function initThemeControls(){ const m=localStorage.getItem(THEME_MODE_KEY)||'system', a=localStorage.getItem(THEME_ACCENT_KEY)||'mint'; applyTheme(m,a); $('#themeLight').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'light');applyTheme('light',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $('#themeSystem').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'system');applyTheme('system',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $('#themeDark').onclick=()=>{localStorage.setItem(THEME_MODE_KEY,'dark');applyTheme('dark',localStorage.getItem(THEME_ACCENT_KEY)||'mint')}; $$('#themeControls .swatch').forEach(el=>el.addEventListener('click',()=>{const x=el.getAttribute('data-accent');localStorage.setItem(THEME_ACCENT_KEY,x);applyTheme(localStorage.getItem(THEME_MODE_KEY)||'system',x)})); }
+function applyTheme(mode,accent){const root=document.documentElement; if(mode==='light'||mode==='dark') root.setAttribute('data-mode',mode); else root.removeAttribute('data-mode'); root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.mint);}
+function initTheme(){const m=localStorage.getItem(THEME_MODE_KEY)||'system', a=localStorage.getItem(THEME_ACCENT_KEY)||'mint'; applyTheme(m,a);}
 
-/* ===== Storage ===== */
-const KEY='gidget_site_v1';            // wake
-const STEPS_KEY='gidget_steps_v1';     // steps
-function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]} }
-function save(rows){ localStorage.setItem(KEY, JSON.stringify(rows)) }
-function loadSteps(){ try{return JSON.parse(localStorage.getItem(STEPS_KEY))||[]}catch{return[]} }
-function saveSteps(rows){ localStorage.setItem(STEPS_KEY, JSON.stringify(rows)) }
+/* ---------- storage ---------- */
+const KEY='gidget_site_v1', STEPS_KEY='gidget_steps_v1';
+const load = () => {try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]}}
+const save = (rows) => localStorage.setItem(KEY, JSON.stringify(rows));
+const loadSteps = () => {try{return JSON.parse(localStorage.getItem(STEPS_KEY))||[]}catch{return[]}}
+const saveSteps = (rows) => localStorage.setItem(STEPS_KEY, JSON.stringify(rows));
 
-/* ===== Tabs ===== */
+/* ---------- tabs (event delegation) ---------- */
 document.addEventListener('DOMContentLoaded', ()=>{
-  const tabsBar = document.querySelector('.tabs');
-  if(tabsBar){
-    tabsBar.addEventListener('click', (ev)=>{
-      const tab = ev.target.closest('.tab');
-      if(!tab || !tabsBar.contains(tab)) return;
-      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-      tab.classList.add('active');
+  initTheme();
+  const tabs = $('#tabs');
+  tabs.addEventListener('click', (ev)=>{
+    const t = ev.target.closest('.tab'); if(!t) return;
+    $$('.tab',tabs).forEach(el=>el.classList.remove('active')); t.classList.add('active');
+    $$('.tabpanel').forEach(p=>p.hidden=true);
+    const panel = $('#panel-'+t.dataset.tab); if(panel){panel.hidden=false;}
+    if(t.dataset.tab==='trends') drawChart();
+    if(t.dataset.tab==='calendar') renderCalendar();
+    if(t.dataset.tab==='entries') renderTable(load());
+    if(t.dataset.tab==='steps-trends') drawStepsChart();
+    if(t.dataset.tab==='steps-calendar') renderStepsCalendar();
+    if(t.dataset.tab==='steps-entries') renderStepsTable(loadSteps());
+  });
 
-      const id = tab.getAttribute('data-tab');
-      document.querySelectorAll('.tabpanel').forEach(p=> p.hidden = true);
-      const panel = document.getElementById('panel-'+id);
-      if(panel){ panel.hidden = false; panel.classList.add('anim-in'); panel.addEventListener('animationend', ()=> panel.classList.remove('anim-in'), {once:true}); }
-      try{
-        if(id==='trends') drawChart();
-        if(id==='calendar') renderCalendar();
-        if(id==='entries') renderTable(load());
-        if(id==='steps-trends') drawStepsChart();
-        if(id==='steps-calendar') renderStepsCalendar();
-        if(id==='steps-entries') renderStepsTable(loadSteps());
-      }catch(e){}
-    });
+  boot();
+});
+
+/* ---------- header shrink (robust) ---------- */
+(function headerShrink(){
+  const hdr=$('#topbar'); if(!hdr) return;
+  let ticking=false;
+  function onScroll(){ if(ticking) return; ticking=true;
+    requestAnimationFrame(()=>{ const y=window.scrollY||document.documentElement.scrollTop||0; hdr.classList.toggle('shrink', y>10); ticking=false; });
   }
-});
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
 
-/* ===== Wake: form + list + chart + calendar ===== */
+/* ---------- wake form ---------- */
 const todayISO=ymdLocal(new Date());
-const dateEl=$('#date'), wakeEl=$('#wake'), weightEl=$('#weight'), moodEl=$('#mood'), notesEl=$('#notes');
-document.addEventListener('DOMContentLoaded', ()=>{ if(dateEl) dateEl.value=todayISO; });
-$('#nowBtn')?.addEventListener('click', ()=>{ const n=new Date(); if(wakeEl) wakeEl.value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}` });
+function boot(){
+  // default dates
+  $('#date').value = todayISO;
+  $('#stepsDate').value = todayISO;
 
-$('#save')?.addEventListener('click', ()=>{
-  const row={date:dateEl.value||todayISO,wake:wakeEl.value||'',weight:weightEl.value||'',mood:moodEl.value||'',notes:notesEl.value||''};
-  const rows=load().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
-  save(rows); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); toast('Saved');
-});
-$('#clearForm')?.addEventListener('click', ()=>{ if(dateEl) dateEl.value=todayISO; if(wakeEl) wakeEl.value=''; if(weightEl) weightEl.value=''; if(moodEl) moodEl.value=''; if(notesEl) notesEl.value=''; });
+  // generic click handlers (single place)
+  document.addEventListener('click', (e)=>{
+    const id = e.target.id;
 
-$('#applyFilter')?.addEventListener('click', ()=> renderTable(load()));
-$('#resetFilter')?.addEventListener('click', ()=>{ const f1=$('#filterFrom'), f2=$('#filterTo'); if(f1) f1.value=''; if(f2) f2.value=''; renderTable(load()); });
+    if(id==='nowBtn'){ const n=new Date(); $('#wake').value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; }
 
-function avg(rows,days){ const cut=new Date(); cut.setDate(cut.getDate()-days+1); const iso=ymdLocal(cut); const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake)); if(!ts.length) return null; return fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)) }
+    if(id==='save'){
+      const row={date:$('#date').value||todayISO,wake:$('#wake').value||'',weight:$('#weight').value||'',mood:$('#mood').value||'',notes:$('#notes').value||''};
+      const rows=load().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
+      save(rows); afterWakeChange(rows); toast('Saved');
+    }
+
+    if(id==='clearForm'){ $('#date').value=todayISO; $('#wake').value=''; $('#weight').value=''; $('#mood').value=''; $('#notes').value=''; }
+
+    if(id==='applyFilter'){ renderTable(load()) }
+    if(id==='resetFilter'){ $('#filterFrom').value=''; $('#filterTo').value=''; renderTable(load()) }
+
+    if(id==='stepsSave'){
+      const row={date:$('#stepsDate').value||todayISO, steps: $('#stepsCount').value||'', notes: $('#stepsNotes').value||''};
+      const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
+      saveSteps(rows); afterStepsChange(rows); toast('Steps saved');
+    }
+    if(id==='stepsClear'){ $('#stepsDate').value=todayISO; $('#stepsCount').value=''; $('#stepsNotes').value=''; }
+
+    // calendar month nav
+    if(id==='prevMonth'){ calRef.setMonth(calRef.getMonth()-1); renderCalendar(); }
+    if(id==='nextMonth'){ calRef.setMonth(calRef.getMonth()+1); renderCalendar(); }
+    if(id==='todayMonth'){ calRef=new Date(); renderCalendar(); }
+    if(id==='stepsPrevMonth'){ stepsCalRef.setMonth(stepsCalRef.getMonth()-1); renderStepsCalendar(); }
+    if(id==='stepsNextMonth'){ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar(); }
+    if(id==='stepsTodayMonth'){ stepsCalRef=new Date(); renderStepsCalendar(); }
+  });
+
+  // month title pickers
+  setupMonthPicker('#calTitle','#monthPicker',() => calRef, (d)=>{ calRef=d; renderCalendar(); });
+  setupMonthPicker('#stepsCalTitle','#stepsMonthPicker',() => stepsCalRef, (d)=>{ stepsCalRef=d; renderStepsCalendar(); });
+
+  // initial render
+  afterWakeChange(load());
+  afterStepsChange(loadSteps());
+}
+
+function afterWakeChange(rows){ renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar(); }
+function afterStepsChange(rows){ renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); drawStepsChart(); renderStepsCalendar(); }
+
 function renderToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#todayBox').textContent=t?`Today ${t.date}: wake ${t.wake||'—'} · weight ${t.weight||'—'}g · mood ${t.mood||'—'}`:'No entry for today yet.' }
-function renderStats(rows){ let s=0, d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){ s++; d.setDate(d.getDate()-1) } $('#streak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; $('#avg7').textContent=`7‑day avg: ${avg(rows,7)||'—'}` }
+function renderStats(rows){ let s=0,d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){s++;d.setDate(d.getDate()-1)} $('#streak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymdLocal(cut); const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake)); $('#avg7').textContent=`7‑day avg: ${ts.length?fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)):'—'}` }
 
 function renderTable(rows){
   const tb=$('#table tbody'); if(!tb) return; tb.innerHTML='';
-  const f1=$('#filterFrom')?.value||'', f2=$('#filterTo')?.value||'';
-  const filtered=rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date));
-  for(const r of filtered){
+  const f1=$('#filterFrom').value||'', f2=$('#filterTo').value||'';
+  rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-date="${r.date}">Delete</button></td>`;
+    tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn small secondary" data-del="${r.date}">Delete</button></td>`;
     tb.appendChild(tr);
-  }
-  $$('button[data-date]',tb).forEach(b=> b.addEventListener('click', e=>{
-    const d=e.target.getAttribute('data-date'); const left=load().filter(r=>r.date!==d);
-    save(left); renderTable(left); drawChart(); renderCalendar(); toast('Entry deleted');
-  }));
+  });
+  tb.onclick=(e)=>{ const d=e.target.getAttribute?.('data-del'); if(!d) return; const left=load().filter(r=>r.date!==d); save(left); afterWakeChange(left); toast('Entry deleted'); };
 }
 
-/* ===== Wake: Trends chart ===== */
-let rangeDays=7, wakePts = [];
+/* ---------- trends: wake ---------- */
+let rangeDays=7, wakePts=[];
+document.addEventListener('click', (e)=>{ const b=e.target.closest('.rangeBtn'); if(b){ rangeDays=+b.dataset.range; drawChart(); }});
 $('#smooth')?.addEventListener('change', drawChart);
-$$('.rangeBtn').forEach(b=> b.addEventListener('click', ()=>{ rangeDays=+b.dataset.range; drawChart() }));
+
 function movingAvg(arr,k){ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1?sum/Math.min(k,i+1):arr[i]) } return out }
 
 function drawChart(){
@@ -463,311 +387,195 @@ function drawChart(){
   const canvas=$('#chart'); if(!canvas) return;
   const {W,H,dpr}=setupCanvas(canvas,260);
   const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
-  wakePts = [];
+  wakePts=[];
 
   const now=new Date(), start=new Date(); start.setDate(now.getDate()-rangeDays+1);
   const data=rows.filter(r=>r.date>=ymdLocal(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
   $('#chartMeta').textContent=data.length?`${data.length} points`:'No data in range';
 
-  const padL=50, padR=12, padT=12, padB=28; // extra for x labels
-  const styles=getComputedStyle(document.body);
-  const line=styles.getPropertyValue('--line').trim(), acc=styles.getPropertyValue('--acc').trim(), muted=styles.getPropertyValue('--muted').trim();
+  const padL=50, padR=12, padT=12, padB=28;
+  const cs=getComputedStyle(document.body); const line=cs.getPropertyValue('--line').trim(), acc=cs.getPropertyValue('--acc').trim(), muted=cs.getPropertyValue('--muted').trim();
 
-  // Axes
-  ctx.strokeStyle=line; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+  ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
 
-  // Y labels (time-of-day)
   function yMap(mins){ let v=mins; if(v<900) v+=1440; const min=900, max=1800; const t=(v-min)/(max-min); return padT+(1-t)*(H-padT-padB) }
   ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font='12px system-ui';
   [18*60,21*60,0,3*60].forEach(t=>{ const y=yMap(t); ctx.fillText(fromMin((t+1440)%1440), padL-6, y); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke() });
 
   if(!data.length) return;
 
-  // X labels
   const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  function formatDayLabel(dstr){ const d=new Date(dstr+'T00:00:00'); const short=d.toLocaleDateString(undefined,{weekday:'short', day:'numeric'}); const dm=d.toLocaleDateString(undefined,{day:'2-digit', month:'short'}); return rangeDays<=14 ? short : dm; }
-  function formatMonthLabel(dstr){ const d=new Date(dstr+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short', year: rangeDays>365 ? '2-digit':'numeric'}); }
+  function dayLabel(dstr){ const d=new Date(dstr+'T00:00:00'); return (rangeDays<=14)? d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'}) : d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}); }
+  function monthLabel(dstr){ const d=new Date(dstr+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',year: rangeDays>365?'2-digit':'numeric'}); }
 
   let ticks=[];
-  if(rangeDays<=14){ for(let i=0;i<data.length;i++){ if(i===0 || i===data.length-1 || (i%2===0)){ ticks.push({i, text: formatDayLabel(data[i].d)}); } } }
-  else if(rangeDays<=90){ let lastMonth=-1; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const isNewMonth=d.getMonth()!==lastMonth; if(isNewMonth || i%5===0 || i===data.length-1){ ticks.push({i, text: formatMonthLabel(data[i].d)}); lastMonth=d.getMonth(); } } }
-  else { let seen={}; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const key=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[key]){ seen[key]=true; ticks.push({i, text: d.toLocaleDateString(undefined,{month:'short'})}); } } }
+  if(rangeDays<=14){ for(let i=0;i<data.length;i++){ if(i===0||i===data.length-1||i%2===0) ticks.push({i,text:dayLabel(data[i].d)}); } }
+  else if(rangeDays<=90){ let last=-1; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const nm=d.getMonth()!==last; if(nm||i%5===0||i===data.length-1){ ticks.push({i,text:monthLabel(data[i].d)}); last=d.getMonth(); } } }
+  else { let seen={}; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const k=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[k]){ seen[k]=true; ticks.push({i,text:d.toLocaleDateString(undefined,{month:'short'})}); } } }
 
-  ctx.fillStyle=muted; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.font='12px system-ui';
-  ticks.forEach(t=>{ const x=xPos(t.i); ctx.fillText(t.text, x, H-padB+6); });
+  ctx.fillStyle=muted; ctx.textAlign='center'; ctx.textBaseline='top';
+  ticks.forEach(t=>ctx.fillText(t.text, xPos(t.i), H-padB+6));
 
-  // Points
   ctx.fillStyle=acc;
   data.forEach((pt,i)=>{ const x=xPos(i), y=yMap(pt.m); wakePts.push({x,y,date:pt.d}); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill(); });
 
-  // Smoothed line
   const k=+($('#smooth')?.value||1);
-  const vals=data.map(d=>{ let v=d.m; if(v<900) v+=1440; return v });
+  const vals=data.map(d=>{let v=d.m; if(v<900) v+=1440; return v});
   const sm=movingAvg(vals,k);
   ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath();
-  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke();
+  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT+(1-((v-900)/(1800-900)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y)}); ctx.stroke();
 }
 
-// Wake chart click/tap (CSS‑pixel hit test)
 (function bindWakeClicks(){
-  const canvas = $('#chart'); if(!canvas) return;
-  const getXY = (e)=>{ const r=canvas.getBoundingClientRect(); const p=e.touches? e.touches[0]:e; return {x: p.clientX - r.left, y: p.clientY - r.top}; };
-  const handle = (e)=>{
-    if(!wakePts.length) return; const {x,y}=getXY(e); let best=null, d2=1e12;
-    for(const p of wakePts){ const dx=x-p.x, dy=y-p.y; const dd=dx*dx+dy*dy; if(dd<d2){d2=dd; best=p;} }
-    if(best && d2<=16*16){ const rows=load(); const r=rows.find(z=>z.date===best.date)||{};
-      openModal({
-        title:`Wake • ${best.date}`,
-        html:`<div><b>Wake</b>: ${r.wake||'—'}</div><div><b>Weight</b>: ${r.weight||'—'} g</div><div><b>Mood</b>: ${r.mood||'—'}</div><div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>`,
-        onEdit:()=>{ document.querySelector('[data-tab="log"]').click(); $('#date').value=best.date; $('#wake').value=r.wake||''; $('#weight').value=r.weight||''; $('#mood').value=r.mood||''; $('#notes').value=r.notes||''; },
-        onDelete:()=>{ const left=load().filter(z=>z.date!==best.date); save(left); renderTable(left); drawChart(); renderCalendar(); renderStats(left); toast('Entry deleted'); }
-      });
-    }
-  };
-  canvas.addEventListener('click', handle); canvas.addEventListener('touchstart', handle, {passive:true});
+  const canvas=$('#chart'); if(!canvas) return;
+  const getXY=(e)=>{const r=canvas.getBoundingClientRect(); const p=e.touches?e.touches[0]:e; return {x:p.clientX-r.left, y:p.clientY-r.top}};
+  function openModal(cfg){ const overlay=$('#modal'); const card=$('#modalCard'); $('#modalTitle').textContent=cfg.title; $('#modalBody').innerHTML=cfg.html; overlay.style.display='flex'; $('#modalClose').onclick=closeModal; $('#modalEdit').onclick=()=>{closeModal(); cfg.onEdit?.();}; $('#modalDelete').onclick=()=>{ if(confirm('Delete this entry?')){ cfg.onDelete?.(); closeModal(); } }; overlay.onclick=(e)=>{ if(e.target===overlay) closeModal(); }; }
+  function closeModal(){ $('#modal').style.display='none'; }
+  const handle=(e)=>{ if(!wakePts.length) return; const {x,y}=getXY(e); let best=null, d2=1e12; for(const p of wakePts){ const dx=x-p.x, dy=y-p.y; const dd=dx*dx+dy*dy; if(dd<d2){d2=dd; best=p;} } if(best && d2<=16*16){ const rows=load(); const r=rows.find(z=>z.date===best.date)||{}; openModal({ title:`Wake • ${best.date}`, html:`<div><b>Wake</b>: ${r.wake||'—'}</div><div><b>Weight</b>: ${r.weight||'—'} g</div><div><b>Mood</b>: ${r.mood||'—'}</div><div style="margin-top:6px"><b>Notes</b>: ${r.notes?String(r.notes).replace(/</g,'&lt;'):'—'}</div>`, onEdit:()=>{ document.querySelector('[data-tab="log"]').click(); $('#date').value=best.date; $('#wake').value=r.wake||''; $('#weight').value=r.weight||''; $('#mood').value=r.mood||''; $('#notes').value=r.notes||''; }, onDelete:()=>{ const left=load().filter(z=>z.date!==best.date); save(left); afterWakeChange(left); toast('Entry deleted'); } }); } };
+  canvas.addEventListener('click',handle); canvas.addEventListener('touchstart',handle,{passive:true});
 })();
 
-/* Calendar */
+/* ---------- calendar (wake) ---------- */
 let calRef=new Date();
 function renderCalendar(){
-  const rows=load(); const box=$('#calendar'); if(!box) return; box.innerHTML='';
+  const rows=load(); const box=$('#calendar'); box.innerHTML='';
+  $('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long',year:'numeric'});
   const y=calRef.getFullYear(), m=calRef.getMonth();
-  $('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long', year:'numeric'});
   const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day);
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i);
-    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
     const dISO=ymdLocal(d); const rec=rows.find(r=>r.date===dISO);
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.wake||'—'}</div>`;
-    cell.addEventListener('click',()=>{ $('#date').value=dISO; $('#wake').value=rec?.wake||''; $('#weight').value=rec?.weight||''; $('#mood').value=rec?.mood||''; $('#notes').value=rec?.notes||''; document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelector('[data-tab="log"]').classList.add('active'); document.querySelectorAll('.tabpanel').forEach(p=>p.hidden=true); const pl=$('#panel-log'); pl.hidden=false; pl.classList.add('anim-in'); pl.addEventListener('animationend',()=>pl.classList.remove('anim-in'),{once:true}); });
+    cell.onclick=()=>{ document.querySelector('[data-tab="log"]').click(); $('#date').value=dISO; $('#wake').value=rec?.wake||''; $('#weight').value=rec?.weight||''; $('#mood').value=rec?.mood||''; $('#notes').value=rec?.notes||''; };
     box.appendChild(cell);
   }
 }
-$('#prevMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()-1); renderCalendar() })
-$('#nextMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderCalendar() })
-$('#todayMonth')?.addEventListener('click', ()=>{ calRef=new Date(); renderCalendar() })
 
-// Wake month title → native month picker
-(function monthPickerWake(){
-  const title = $('#calTitle'); const picker = $('#monthPicker'); if(!title || !picker) return;
-  function openPicker(){ const y=calRef.getFullYear(), m=String(calRef.getMonth()+1).padStart(2,'0'); picker.value=`${y}-${m}`; try{ if(picker.showPicker) picker.showPicker(); else picker.click(); }catch{ picker.click(); } }
-  picker.addEventListener('change', ()=>{ if(!picker.value) return; const [yy,mm]=picker.value.split('-').map(Number); calRef=new Date(yy,mm-1,1); renderCalendar(); });
-  title.addEventListener('click', openPicker);
-  title.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openPicker(); }});
-  title.setAttribute('tabindex','0'); title.setAttribute('role','button'); title.setAttribute('aria-label','Choose month to display');
-})();
-
-/* ===== CSV (both sets) ===== */
+/* ---------- CSV both ---------- */
 $('#exportCsv')?.addEventListener('click', ()=>{
   const rows=load(), steps=loadSteps();
   const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
   const wakeLines=rows.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(','));
   const stepLines=steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(','));
-  const csv=header+[...wakeLines,...stepLines].join('\n');
-  const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
+  const blob=new Blob([header+[...wakeLines,...stepLines].join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
 });
 $('#importCsv')?.addEventListener('change', async (e)=>{
-  const file=e.target.files[0]; if(!file) return; const text=await file.text();
+  const f=e.target.files[0]; if(!f) return; const text=await f.text();
   const lines=text.trim().split(/\r?\n/); const header=lines.shift()?.split(',')||[]; const typeIdx=header.indexOf('Type');
   const outWake=[], outSteps=[];
-  for(const ln of lines){ const p=ln.split(','); const type=(typeIdx>=0?p[typeIdx]:'wake');
-    if(type==='steps'){ outSteps.push({date:p[1], steps:p[6]||'', notes:p[5]||''}); }
-    else { outWake.push({date:p[1], wake:p[2]||'', weight:p[3]||'', mood:p[4]||'', notes:p[5]||''}); }
-  }
-  save(outWake); saveSteps(outSteps);
-  renderToday(outWake); renderStats(outWake); renderTable(outWake); drawChart(); renderCalendar();
-  renderStepsToday(outSteps); renderStepsStats(outSteps); renderStepsTable(outSteps); drawStepsChart(); renderStepsCalendar();
-  toast('Imported CSV');
+  for(const ln of lines){ const p=ln.split(','); const type=(typeIdx>=0?p[typeIdx]:'wake'); if(type==='steps'){ outSteps.push({date:p[1],steps:p[6]||'',notes:p[5]||''}); } else { outWake.push({date:p[1],wake:p[2]||'',weight:p[3]||'',mood:p[4]||'',notes:p[5]||''}); } }
+  save(outWake); saveSteps(outSteps); afterWakeChange(outWake); afterStepsChange(outSteps); toast('Imported CSV');
 });
 
-/* ===== Reset ===== */
-$('#resetData')?.addEventListener('click', ()=>{
-  if(confirm('Reset all Gidget entries (wake + steps) on this device? This cannot be undone.')){
-    localStorage.removeItem(KEY); localStorage.removeItem(STEPS_KEY);
-    const rows=[], steps=[]; renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar();
-    renderStepsToday(steps); renderStepsStats(steps); renderStepsTable(steps); drawStepsChart(); renderStepsCalendar();
-    toast('All data cleared');
-  }
-});
+/* ---------- Steps ---------- */
+function renderStepsToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#stepsTodayBox').textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.' }
+function renderStepsStats(rows){ let s=0,d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){s++;d.setDate(d.getDate()-1)} $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymdLocal(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); $('#stepsAvg7').textContent=`7‑day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'}` }
+function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); tb.innerHTML=''; [...rows].sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn small secondary" data-del-steps="${r.date}">Delete</button></td>`; tb.appendChild(tr); }); tb.onclick=(e)=>{ const d=e.target.getAttribute?.('data-del-steps'); if(!d) return; const left=loadSteps().filter(r=>r.date!==d); saveSteps(left); afterStepsChange(left); toast('Steps entry deleted'); }; }
 
-/* ===== Steps: form + list + chart + calendar ===== */
-const stepsDateEl=$('#stepsDate'), stepsCountEl=$('#stepsCount'), stepsNotesEl=$('#stepsNotes');
-function stepsTodayISO(){ return ymdLocal(new Date()); }
-document.addEventListener('DOMContentLoaded', ()=>{ if(stepsDateEl) stepsDateEl.value=stepsTodayISO(); });
-
-$('#stepsSave')?.addEventListener('click', ()=>{
-  const row={date:stepsDateEl.value||stepsTodayISO(), steps: stepsCountEl.value||'', notes: stepsNotesEl.value||''};
-  const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date));
-  saveSteps(rows); renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); drawStepsChart(); renderStepsCalendar(); toast('Steps saved');
-});
-$('#stepsClear')?.addEventListener('click', ()=>{ if(stepsDateEl) stepsDateEl.value=stepsTodayISO(); if(stepsCountEl) stepsCountEl.value=''; if(stepsNotesEl) stepsNotesEl.value=''; });
-
-function renderStepsToday(rows){ const t=rows.find(r=>r.date===stepsTodayISO()); $('#stepsTodayBox').textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.' }
-function renderStepsStats(rows){ let s=0, d=new Date(); while(rows.some(r=>r.date===ymdLocal(d))){ s++; d.setDate(d.getDate()-1) } $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymdLocal(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); const avg=vals.length? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null; $('#stepsAvg7').textContent=`7‑day avg: ${avg??'—'}` }
-function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML=''; const filtered=[...rows].sort((a,b)=>b.date.localeCompare(a.date)); for(const r of filtered){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? r.notes.replace(/</g,'&lt;'):'—'}</td><td><button class="btn secondary small" data-sdate="${r.date}">Delete</button></td>`; tb.appendChild(tr) } $$('button[data-sdate]',tb).forEach(b=> b.addEventListener('click', e=>{ const d=e.target.getAttribute('data-sdate'); const left=loadSteps().filter(r=>r.date!==d); saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); toast('Steps entry deleted') })) }
-
-/* Steps trends */
-let stepsRange=7, stepsPts = [];
+let stepsRange=7, stepsPts=[];
+document.addEventListener('click', (e)=>{ const b=e.target.closest('.stepsRangeBtn'); if(b){ stepsRange=+b.dataset.range; drawStepsChart(); }});
 $('#stepsSmooth')?.addEventListener('change', drawStepsChart);
-$$('.stepsRangeBtn').forEach(b=> b.addEventListener('click', ()=>{ stepsRange=+b.dataset.range; drawStepsChart() }));
 
 function drawStepsChart(){
   const rows=loadSteps().filter(r=>r.steps);
   const canvas=$('#stepsChart'); if(!canvas) return;
   const {W,H,dpr}=setupCanvas(canvas,260);
   const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
-  stepsPts = [];
+  stepsPts=[];
 
-  const now=new Date(); const start=new Date(); start.setDate(now.getDate()-stepsRange+1); const isoStart=ymdLocal(start);
-  const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date, v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
+  const now=new Date(), start=new Date(); start.setDate(now.getDate()-stepsRange+1); const isoStart=ymdLocal(start);
+  const data=rows.filter(r=>r.date>=isoStart).map(r=>({d:r.date,v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
   $('#stepsChartMeta').textContent=data.length?`${data.length} points`:'No data in range';
 
-  const padL=50, padR=12, padT=12, padB=28;
-  const styles=getComputedStyle(document.body); const line=styles.getPropertyValue('--line').trim(), acc=styles.getPropertyValue('--acc').trim(), muted=styles.getPropertyValue('--muted').trim();
+  const padL=50,padR=12,padT=12,padB=28;
+  const cs=getComputedStyle(document.body); const line=cs.getPropertyValue('--line').trim(), acc=cs.getPropertyValue('--acc').trim(), muted=cs.getPropertyValue('--muted').trim();
 
-  // Axes
-  ctx.strokeStyle=line; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
+  ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,H-padB); ctx.lineTo(W-padR,H-padB); ctx.stroke();
 
   if(!data.length) return;
 
-  // X labels (days/months/years)
   const xPos=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  function monthLabel(dstr){ const d=new Date(dstr+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short', year: stepsRange>365 ? '2-digit':'numeric'}); }
+  function monthLabel(dstr){ const d=new Date(dstr+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',year:stepsRange>365?'2-digit':'numeric'}); }
   let ticks=[];
-  if(stepsRange<=14){
-    for(let i=0;i<data.length;i++){ if(i===0||i===data.length-1||i%2===0){ const d=new Date(data[i].d+'T00:00:00'); const txt=d.toLocaleDateString(undefined,{weekday:'short', day:'numeric'}); ticks.push({i,text:txt}); } }
-  }else if(stepsRange<=90){
-    let lastM=-1;
-    for(let i=0;i<data.length;i++){
-      const d=new Date(data[i].d+'T00:00:00'); const newM=d.getMonth()!==lastM;
-      if(newM || i%5===0 || i===data.length-1){ ticks.push({i,text:monthLabel(data[i].d)}); lastM=d.getMonth(); }
-    }
-  }else{
-    let seen={};
-    for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const key=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[key]){ seen[key]=true; ticks.push({i,text:d.toLocaleDateString(undefined,{month:'short'})}); } }
-  }
-  ctx.fillStyle=muted; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.font='12px system-ui';
-  ticks.forEach(t=>{ const x=xPos(t.i); ctx.fillText(t.text, x, H-padB+6); });
+  if(stepsRange<=14){ for(let i=0;i<data.length;i++){ if(i===0||i===data.length-1||i%2===0){ const d=new Date(data[i].d+'T00:00:00'); const txt=d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'}); ticks.push({i,text:txt}); } } }
+  else if(stepsRange<=90){ let last=-1; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const nm=d.getMonth()!==last; if(nm||i%5===0||i===data.length-1){ ticks.push({i,text:monthLabel(data[i].d)}); last=d.getMonth(); } } }
+  else { let seen={}; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const k=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[k]){ seen[k]=true; ticks.push({i,text:d.toLocaleDateString(undefined,{month:'short'})}); } } }
+  ctx.fillStyle=muted; ctx.textAlign='center'; ctx.textBaseline='top';
+  ticks.forEach(t=>ctx.fillText(t.text, xPos(t.i), H-padB+6));
 
-  // Y grid + labels
-  const vals=data.map(p=>p.v);
-  const yMin=Math.max(0, Math.floor(Math.min(...vals)*0.95));
-  const yMax=Math.ceil(Math.max(...vals)*1.05)||1;
+  const vals=data.map(p=>p.v), yMin=Math.max(0,Math.floor(Math.min(...vals)*0.95)), yMax=Math.ceil(Math.max(...vals)*1.05)||1;
   ctx.textAlign='right'; ctx.textBaseline='middle';
-  const yTicks=5;
-  for(let i=0;i<=yTicks;i++){
-    const t=i/yTicks; const y=padT+(1-t)*(H-padT-padB);
-    const val=Math.round(yMin + t*(yMax-yMin));
-    ctx.fillText(val, padL-6, y);
-    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
-  }
+  for(let i=0;i<=5;i++){ const t=i/5; const y=padT+(1-t)*(H-padT-padB); const v=Math.round(yMin+t*(yMax-yMin)); ctx.fillText(v,padL-6,y); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke(); }
 
-  // Line + points
   const k=+($('#stepsSmooth')?.value||1);
   const moving=(arr,k)=>{ if(k<=1) return arr.slice(); const out=[]; let sum=0; for(let i=0;i<arr.length;i++){ sum+=arr[i]; if(i>=k) sum-=arr[i-k]; out.push(i>=k-1? sum/Math.min(k,i+1):arr[i]) } return out };
   const sm=moving(vals,k);
   ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath();
-  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) });
-  ctx.stroke();
+  sm.forEach((v,i)=>{ const x=xPos(i); const y=padT+(1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?ctx.lineTo(x,y):ctx.moveTo(x,y) }); ctx.stroke();
 
   ctx.fillStyle=acc;
-  data.forEach((p,i)=>{ const x=xPos(i); const y=padT + (1-((p.v-yMin)/(yMax-yMin)))*(H-padT-padB); stepsPts.push({x,y,date:p.d}); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill(); });
+  data.forEach((p,i)=>{ const x=xPos(i); const y=padT+(1-((p.v-yMin)/(yMax-yMin)))*(H-padT-padB); stepsPts.push({x,y,date:p.d}); ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill(); });
 }
 
-// Steps chart click/tap (CSS‑pixel hit test)
 (function bindStepsClicks(){
-  const canvas = $('#stepsChart'); if(!canvas) return;
-  const getXY = (e)=>{ const r=canvas.getBoundingClientRect(); const p=e.touches? e.touches[0]:e; return {x: p.clientX - r.left, y: p.clientY - r.top}; };
-  const handle = (e)=>{
-    if(!stepsPts.length) return; const {x,y}=getXY(e); let best=null, d2=1e12;
-    for(const p of stepsPts){ const dx=x-p.x, dy=y-p.y; const dd=dx*dx+dy*dy; if(dd<d2){d2=dd; best=p;} }
-    if(best && d2<=16*16){ const rows=loadSteps(); const r=rows.find(z=>z.date===best.date)||{};
-      openModal({
-        title:`Steps • ${best.date}`,
-        html:`<div><b>Steps</b>: ${r.steps||'—'}</div><div style="margin-top:6px"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>`,
-        onEdit:()=>{ document.querySelector('[data-tab="steps-log"]').click(); $('#stepsDate').value=best.date; $('#stepsCount').value=r.steps||''; $('#stepsNotes').value=r.notes||''; },
-        onDelete:()=>{ const left=loadSteps().filter(z=>z.date!==best.date); saveSteps(left); renderStepsTable(left); drawStepsChart(); renderStepsCalendar(); renderStepsStats(left); toast('Steps entry deleted'); }
-      });
-    }
-  };
-  canvas.addEventListener('click', handle); canvas.addEventListener('touchstart', handle, {passive:true});
+  const canvas=$('#stepsChart'); if(!canvas) return;
+  const getXY=(e)=>{const r=canvas.getBoundingClientRect(); const p=e.touches?e.touches[0]:e; return {x:p.clientX-r.left, y:p.clientY-r.top}};
+  const handle=(e)=>{ if(!stepsPts.length) return; const {x,y}=getXY(e); let best=null,d2=1e12; for(const p of stepsPts){ const dx=x-p.x, dy=y-p.y; const dd=dx*dx+dy*dy; if(dd<d2){d2=dd; best=p;} } if(best && d2<=16*16){ const rows=loadSteps(); const r=rows.find(z=>z.date===best.date)||{}; openModal({ title:`Steps • ${best.date}`, html:`<div><b>Steps</b>: ${r.steps||'—'}</div><div style="margin-top:6px"><b>Notes</b>: ${r.notes?String(r.notes).replace(/</g,'&lt;'):'—'}</div>`, onEdit:()=>{ document.querySelector('[data-tab="steps-log"]').click(); $('#stepsDate').value=best.date; $('#stepsCount').value=r.steps||''; $('#stepsNotes').value=r.notes||''; }, onDelete:()=>{ const left=loadSteps().filter(z=>z.date!==best.date); saveSteps(left); afterStepsChange(left); toast('Steps entry deleted'); } }); } };
+  function openModal(cfg){ const overlay=$('#modal'); $('#modalTitle').textContent=cfg.title; $('#modalBody').innerHTML=cfg.html; overlay.style.display='flex'; $('#modalClose').onclick=()=>overlay.style.display='none'; $('#modalEdit').onclick=()=>{overlay.style.display='none'; cfg.onEdit?.();}; $('#modalDelete').onclick=()=>{ if(confirm('Delete this entry?')){ cfg.onDelete?.(); overlay.style.display='none'; } }; overlay.onclick=(e)=>{ if(e.target===overlay) overlay.style.display='none'; }; }
+  canvas.addEventListener('click',handle); canvas.addEventListener('touchstart',handle,{passive:true});
 })();
 
-/* Steps calendar */
+/* ---------- steps calendar ---------- */
 let stepsCalRef=new Date();
 function renderStepsCalendar(){
-  const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return; box.innerHTML='';
+  const rows=loadSteps(); const box=$('#stepsCalendar'); box.innerHTML='';
+  $('#stepsCalTitle').textContent=stepsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
   const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth();
-  $('#stepsCalTitle').textContent=stepsCalRef.toLocaleString(undefined,{month:'long', year:'numeric'});
   const first=new Date(y,m,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(1-day);
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i);
-    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
     const dISO=ymdLocal(d); const rec=rows.find(r=>r.date===dISO);
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div style="margin-top:6px;font-size:13px">${rec?.steps||'—'}</div>`;
-    cell.addEventListener('click',()=>{ $('#stepsDate').value=dISO; $('#stepsCount').value=rec?.steps||''; $('#stepsNotes').value=rec?.notes||''; document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.querySelector('[data-tab="steps-log"]').classList.add('active'); document.querySelectorAll('.tabpanel').forEach(p=>p.hidden=true); const pl=$('#panel-steps-log'); pl.hidden=false; pl.classList.add('anim-in'); pl.addEventListener('animationend',()=>pl.classList.remove('anim-in'),{once:true}); });
+    cell.onclick=()=>{ document.querySelector('[data-tab="steps-log"]').click(); $('#stepsDate').value=dISO; $('#stepsCount').value=rec?.steps||''; $('#stepsNotes').value=rec?.notes||''; };
     box.appendChild(cell);
   }
 }
-$('#stepsPrevMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()-1); renderStepsCalendar() })
-$('#stepsNextMonth')?.addEventListener('click', ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar() })
-$('#stepsTodayMonth')?.addEventListener('click', ()=>{ stepsCalRef=new Date(); renderStepsCalendar() })
 
-// Steps month title → native month picker
-(function monthPickerSteps(){
-  const title=$('#stepsCalTitle'), picker=$('#stepsMonthPicker'); if(!title||!picker) return;
-  function openPicker(){ const y=stepsCalRef.getFullYear(), m=String(stepsCalRef.getMonth()+1).padStart(2,'0'); picker.value=`${y}-${m}`; try{ if(picker.showPicker) picker.showPicker(); else picker.click(); }catch{ picker.click(); } }
-  picker.addEventListener('change', ()=>{ if(!picker.value) return; const [yy,mm]=picker.value.split('-').map(Number); stepsCalRef=new Date(yy,mm-1,1); renderStepsCalendar(); });
+/* ---------- month picker wiring ---------- */
+function setupMonthPicker(titleSel, inputSel, getRef, setRef){
+  const title=$(titleSel), picker=$(inputSel); if(!title||!picker) return;
+  function openPicker(){
+    const ref=getRef(); const y=ref.getFullYear(); const m=String(ref.getMonth()+1).padStart(2,'0'); picker.value=`${y}-${m}`;
+    // iOS allows showPicker inside user gesture; otherwise use .click()
+    try{ if(picker.showPicker) picker.showPicker(); else picker.click(); }catch{ picker.click(); }
+  }
   title.addEventListener('click', openPicker);
-  title.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openPicker(); }});
-  title.setAttribute('tabindex','0'); title.setAttribute('role','button'); title.setAttribute('aria-label','Choose month to display');
-})();
-
-/* ===== Boot ===== */
-document.addEventListener('DOMContentLoaded', ()=>{
-  initThemeControls();
-  if(stepsDateEl) stepsDateEl.value=stepsTodayISO();
-  const rows=load(); renderToday(rows); renderStats(rows); renderTable(rows); drawChart(); renderCalendar();
-  const srows=loadSteps(); renderStepsToday(srows); renderStepsStats(srows); renderStepsTable(srows); drawStepsChart(); renderStepsCalendar();
-});
-
-/* Re-render charts when layout/size changes */
-let resizeTO=null;
-function redrawChartsSoon(){ clearTimeout(resizeTO); resizeTO=setTimeout(()=>{ try{ drawChart(); drawStepsChart(); }catch(e){} }, 120); }
-window.addEventListener('resize', redrawChartsSoon);
-window.addEventListener('orientationchange', redrawChartsSoon);
-const ro=new ResizeObserver(redrawChartsSoon); ro.observe(document.body);
-
-/* Header shrink on scroll (ensured) */
-(function headerShrink(){
-  const hdr = document.querySelector('header'); if(!hdr) return;
-  let ticking=false;
-  function onScroll(){
-    if(ticking) return; ticking=true;
-    requestAnimationFrame(()=>{ const y=window.scrollY||document.documentElement.scrollTop||0; if(y>10) hdr.classList.add('shrink'); else hdr.classList.remove('shrink'); ticking=false; });
-  }
-  window.addEventListener('scroll', onScroll, {passive:true});
-  // also trigger after content injections
-  setTimeout(onScroll, 0);
-})();
-
-/* ===== SW registration (v=15) + bypass ===== */
-if ('serviceWorker' in navigator) {
-  const qs = new URL(location.href).searchParams;
-  const bypass = qs.has('nosw') || qs.get('nosw') === '1';
-  if (!bypass) {
-    window.addEventListener('load', async () => {
-      try { const reg = await navigator.serviceWorker.register('./sw.js?v=15'); await reg.update(); } catch (e) {}
-    });
-    navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.type === 'SW_ACTIVATED') location.reload(); });
-    document.addEventListener('visibilitychange', async () => { if (document.visibilityState === 'visible') { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } });
-    let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
-  }
+  title.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openPicker(); }});
+  title.tabIndex=0; title.setAttribute('role','button');
+  picker.addEventListener('change', ()=>{ if(!picker.value) return; const [yy,mm]=picker.value.split('-').map(Number); setRef(new Date(yy,mm-1,1)); });
 }
 
-$('#installInfo')?.addEventListener('click', ()=> alert('On iPhone: open this URL in Safari → Share → Add to Home Screen.'));
+/* ---------- responsive re-draw ---------- */
+let resizeTO=null; function redraw(){ clearTimeout(resizeTO); resizeTO=setTimeout(()=>{ try{ drawChart(); drawStepsChart(); }catch(e){} }, 120) }
+addEventListener('resize', redraw, {passive:true}); addEventListener('orientationchange', redraw, {passive:true});
+</script>
+
+<script>
+/* ---------- PWA (v16) ---------- */
+if('serviceWorker' in navigator){
+  const qs=new URL(location.href).searchParams;
+  if(!(qs.has('nosw') || qs.get('nosw')==='1')){
+    addEventListener('load', async ()=>{
+      try{ const reg=await navigator.serviceWorker.register('./sw.js?v=16'); await reg.update(); }catch(e){}
+    });
+    let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
+    navigator.serviceWorker.addEventListener('message', (e)=>{ if(e.data?.type==='SW_ACTIVATED') location.reload(); });
+  }
+}
+document.getElementById('installInfo')?.addEventListener('click', ()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.'));
 </script>
 </body>
 </html>

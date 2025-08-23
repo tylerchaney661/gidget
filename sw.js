@@ -1,6 +1,6 @@
-// Gidget Service Worker — v15 (network-first HTML + cache-first assets)
-const CACHE_STATIC = 'gidget-static-v15';
-const CACHE_HTML   = 'gidget-html-v15';
+// Gidget Service Worker — v16 (network-first HTML + cache-first assets)
+const CACHE_STATIC = 'gidget-static-v16';
+const CACHE_HTML   = 'gidget-html-v16';
 
 const ASSETS = [
   './',
@@ -21,7 +21,7 @@ self.addEventListener('activate', (event) => {
     await Promise.all(keys.filter(k=>![CACHE_STATIC, CACHE_HTML].includes(k)).map(k=>caches.delete(k)));
     await self.clients.claim();
     const clients = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
-    for(const client of clients){ client.postMessage({ type:'SW_ACTIVATED', version:'v15' }); }
+    for (const client of clients) client.postMessage({ type:'SW_ACTIVATED', version:'v16' });
   })());
 });
 
