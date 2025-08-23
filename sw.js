@@ -1,12 +1,12 @@
-// Gidget Service Worker — v18 (network-first HTML, safe caching)
-const CACHE_STATIC = 'gidget-static-v18';
-const CACHE_HTML   = 'gidget-html-v18';
+// Gidget Service Worker — v22 (network-first HTML, safe caching)
+const CACHE_STATIC = 'gidget-static-v22';
+const CACHE_HTML   = 'gidget-html-v22';
 
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=14',
-  './app.js?v=14',
+  './style.css?v=22',
+  './app.js?v=22',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -23,7 +23,7 @@ self.addEventListener('activate', (event) => {
     await Promise.all(keys.filter(k=>![CACHE_STATIC, CACHE_HTML].includes(k)).map(k=>caches.delete(k)));
     await self.clients.claim();
     const clients = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
-    for (const client of clients) client.postMessage({ type:'SW_ACTIVATED', version:'v18' });
+    for (const client of clients) client.postMessage({ type:'SW_ACTIVATED', version:'v22' });
   })());
 });
 
@@ -38,7 +38,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML: network-first to avoid stale UI
+  // HTML: network-first
   if (event.request.mode === 'navigate' || (req.headers.get('accept')||'').includes('text/html')) {
     event.respondWith(
       fetch(req, { cache: 'no-store' })
