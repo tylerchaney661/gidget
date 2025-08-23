@@ -1,9 +1,10 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v22)
+   Gidget · Hamster Tracker — app.js (v22 + tidy upgrades)
    - No optional chaining; stable across TS configs
-   - Wake & Steps calendars: modal details + edit
-   - Month nav + month pickers (iOS-safe)
-   - Trends charts, CSV import/export, PWA, header hide
+   - Wake & Steps: log, trends, calendar (modal details + edit)
+   - Undo delete toasts; Save success toast; inline validation
+   - JSON export/import (merge by date)
+   - Status-dot online/offline; SW update toast
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -23,6 +24,22 @@ function setupCanvas(cv, cssH=260){
   const dpr=window.devicePixelRatio||1, rect=cv.getBoundingClientRect();
   cv.width=Math.max(1,Math.round(rect.width*dpr)); cv.height=Math.max(1,Math.round(parseFloat(cv.style.height)*dpr));
   return { W: rect.width, H: parseFloat(cv.style.height), dpr };
+}
+
+/* Toast */
+function toast(msg, actionsHtml){
+  let t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  t.innerHTML = `<span>${msg}</span>` + (actionsHtml||'');
+  t.hidden = false;
+  t.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(()=>{ t.classList.remove('show'); }, 5000);
 }
 
 /* ---------------------- theme ---------------------- */
@@ -78,11 +95,22 @@ function saveSteps(rows){ localStorage.setItem(STEPS_KEY, JSON.stringify(rows));
 /* =================== Wake module =================== */
 const todayISO=ymd(new Date()); let calRef=new Date();
 
+function validateWake(){
+  const d=$('#date'), t=$('#wake'), w=$('#weight');
+  [d,t,w].forEach(el=>el && el.classList.remove('error'));
+  if(!d.value){ d.classList.add('error'); toast('Date is required'); return false; }
+  if(t.value && !/^\d{2}:\d{2}$/.test(t.value)){ t.classList.add('error'); toast('Time must be HH:MM'); return false; }
+  if(w.value !== '' && (+w.value<0)){ w.classList.add('error'); toast('Weight must be ≥ 0'); return false; }
+  return true;
+}
+
 function initWakeForm(){
   const date=$('#date'), nowBtn=$('#nowBtn'), save=$('#save'), clear=$('#clearForm'); if(date) date.value=todayISO;
   if(nowBtn) nowBtn.onclick=()=>{ const n=new Date(); $('#wake').value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; };
-  if(save) save.onclick=()=>{ const row={date:$('#date').value||todayISO,wake:$('#wake').value||'',weight:$('#weight').value||'',mood:$('#mood').value||'',notes:$('#notes').value||''};
-    const rows=loadWake().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); };
+  if(save) save.onclick=()=>{ if(!validateWake()) return;
+    const row={date:$('#date').value||todayISO,wake:$('#wake').value||'',weight:$('#weight').value||'',mood:$('#mood').value||'',notes:$('#notes').value||''};
+    const rows=loadWake().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); toast('Saved wake entry ✓');
+  };
   if(clear) clear.onclick=()=>{ $('#date').value=todayISO; $('#wake').value=''; $('#weight').value=''; $('#mood').value=''; $('#notes').value=''; };
   const apply=$('#applyFilter'), reset=$('#resetFilter');
   if(apply) apply.onclick=()=>renderWakeTable(loadWake());
@@ -99,7 +127,21 @@ function renderWakeTable(rows){
     tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</td><td><button class="btn small" data-del="${r.date}">Delete</button></td>`;
     tb.appendChild(tr);
   });
-  tb.onclick=(e)=>{ const t=e.target; const d=(t&&t.getAttribute)? t.getAttribute('data-del'):null; if(!d) return; const left=loadWake().filter(r=>r.date!==d); saveWake(left); afterWake(left); };
+  tb.onclick = (e) => {
+    const btn = e.target;
+    const d = (btn && btn.getAttribute) ? btn.getAttribute('data-del') : null;
+    if (!d) return;
+    const all = loadWake();
+    const deleted = all.find(r => r.date === d);
+    const left = all.filter(r => r.date !== d);
+    saveWake(left); afterWake(left);
+    toast(`Deleted wake entry ${d}`, `<button class="btn small" id="undoWake">Undo</button>`);
+    const u = document.getElementById('undoWake');
+    if (u) u.onclick = () => {
+      const rows = loadWake().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date));
+      saveWake(rows); afterWake(rows);
+    };
+  };
 }
 
 let wakeRange=7, wakePts=[];
@@ -153,17 +195,46 @@ function renderWakeCalendar(){
 /* =================== Steps module =================== */
 let stepsCalRef=new Date(), stepsRange=7;
 
+function validateSteps(){
+  const d=$('#stepsDate'), s=$('#stepsCount');
+  [d,s].forEach(el=>el && el.classList.remove('error'));
+  if(!d.value){ d.classList.add('error'); toast('Date is required'); return false; }
+  if(s.value !== '' && (+s.value<0)){ s.classList.add('error'); toast('Steps must be ≥ 0'); return false; }
+  return true;
+}
+
 function initStepsForm(){
   const d=$('#stepsDate'); if(d) d.value=todayISO;
-  const save=$('#stepsSave'); if(save) save.onclick=()=>{ const row={date:$('#stepsDate').value||todayISO,steps:$('#stepsCount').value||'',notes:$('#stepsNotes').value||''}; const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); saveSteps(rows); afterSteps(rows); };
+  const todayBtn=$('#stepsTodayBtn'); if(todayBtn) todayBtn.onclick=()=>{ $('#stepsDate').value=todayISO; };
+  const save=$('#stepsSave'); if(save) save.onclick=()=>{ if(!validateSteps()) return;
+    const row={date:$('#stepsDate').value||todayISO,steps:$('#stepsCount').value||'',notes:$('#stepsNotes').value||''};
+    const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); saveSteps(rows); afterSteps(rows); toast('Saved steps ✓');
+  };
   const clr=$('#stepsClear'); if(clr) clr.onclick=()=>{ $('#stepsDate').value=todayISO; $('#stepsCount').value=''; $('#stepsNotes').value=''; };
   { const el=$('#stepsSmooth'); if(el) el.addEventListener('change', drawStepsChart); }
   document.addEventListener('click',(e)=>{ const b=closestEl(e,'.stepsRangeBtn'); if(b){ stepsRange=+b.getAttribute('data-range'); drawStepsChart(); }});
 }
+
 function renderStepsToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#stepsTodayBox').textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.' }
 function renderStepsStats(rows){ let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)} $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); $('#stepsAvg7').textContent=`7‑day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'}` }
 function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML=''; rows.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</td><td><button class="btn small" data-sdel="${r.date}">Delete</button></td>`; tb.appendChild(tr); });
-  tb.onclick=(e)=>{ const t=e.target; const d=(t&&t.getAttribute)? t.getAttribute('data-sdel'):null; if(!d) return; const left=loadSteps().filter(r=>r.date!==d); saveSteps(left); afterSteps(left); }; }
+  tb.onclick = (e) => {
+    const btn = e.target;
+    const d = (btn && btn.getAttribute) ? btn.getAttribute('data-sdel') : null;
+    if (!d) return;
+    const all = loadSteps();
+    const deleted = all.find(r => r.date === d);
+    const left = all.filter(r => r.date !== d);
+    saveSteps(left); afterSteps(left);
+    toast(`Deleted steps ${d}`, `<button class="btn small" id="undoSteps">Undo</button>`);
+    const u = document.getElementById('undoSteps');
+    if (u) u.onclick = () => {
+      const rows = loadSteps().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date));
+      saveSteps(rows); afterSteps(rows);
+    };
+  };
+}
+
 function drawStepsChart(){
   const rows=loadSteps().filter(r=>r.steps), cv=$('#stepsChart'); if(!cv) return; const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
   const start=new Date(); start.setDate(start.getDate()-stepsRange+1); const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
@@ -183,6 +254,7 @@ function drawStepsChart(){
   const k=+( ($('#stepsSmooth')&&$('#stepsSmooth').value) || 1 ); const sm=((arr,n)=>{if(n<=1)return arr.slice();const out=[];let s=0;for(let i=0;i<arr.length;i++){s+=arr[i]; if(i>=n)s-=arr[i-n]; out.push(i>=n-1? s/Math.min(n,i+1):arr[i])}return out})(vals,k);
   cx.strokeStyle=acc; cx.lineWidth=2; cx.beginPath(); sm.forEach((v,i)=>{const X=x(i),Y=padT+(1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?cx.lineTo(X,Y):cx.moveTo(X,Y)}); cx.stroke();
 }
+
 function renderStepsCalendar(){
   const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return; box.innerHTML='';
   const title=$('#stepsCalTitle'); if(title) title.textContent=stepsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
@@ -198,15 +270,43 @@ function renderStepsCalendar(){
     box.appendChild(cell);
   }
 }
+
 function afterWake(rows){ renderWakeToday(rows); renderWakeStats(rows); renderWakeTable(rows); drawWakeChart(); renderWakeCalendar(); }
 function afterSteps(rows){ renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); drawStepsChart(); renderStepsCalendar(); }
 
-/* ---------------- CSV import / export --------------- */
+/* ---------------- CSV export / import --------------- */
 const exportBtn=$('#exportCsv'); if(exportBtn) exportBtn.onclick=()=>{ const wake=loadWake(), steps=loadSteps();
   const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
   const lines=[...wake.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(',')), ...steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(','))];
   const blob=new Blob([header+lines.join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click(); };
-const importEl=$('#importCsv'); if(importEl) importEl.addEventListener('change',(e)=>{ const f=e.target.files[0]; if(!f) return; f.text().then((text)=>{ const lines=text.trim().split(/\r?\n/); const header=lines.shift().split(','); const idxType=header.indexOf('Type'); const W=[],S=[]; lines.forEach(ln=>{ const p=ln.split(','); const type=(idxType>=0?p[idxType]:'wake'); if(type==='steps'){ S.push({date:p[1],steps:p[6]||'',notes:p[5]||''}); } else { W.push({date:p[1],wake:p[2]||'',weight:p[3]||'',mood:p[4]||'',notes:p[5]||''}); } }); saveWake(W); saveSteps(S); afterWake(W); afterSteps(S); }); });
+const importEl=$('#importCsv'); if(importEl) importEl.addEventListener('change',(e)=>{ const f=e.target.files[0]; if(!f) return; f.text().then((text)=>{ const lines=text.trim().split(/\r?\n/); const header=lines.shift().split(','); const idxType=header.indexOf('Type'); const W=[],S=[]; lines.forEach(ln=>{ const p=ln.split(','); const type=(idxType>=0?p[idxType]:'wake'); if(type==='steps'){ S.push({date:p[1],steps:p[6]||'',notes:p[5]||''}); } else { W.push({date:p[1],wake:p[2]||'',weight:p[3]||'',mood:p[4]||'',notes:p[5]||''}); } }); saveWake(W); saveSteps(S); afterWake(W); afterSteps(S); toast('Imported CSV'); }); });
+
+/* ---------------- JSON export / import -------------- */
+const exportJson = document.getElementById('exportJson');
+if (exportJson) exportJson.onclick = () => {
+  const blob = new Blob([JSON.stringify({ wake: loadWake(), steps: loadSteps() }, null, 2)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v22.json'; a.click();
+};
+const importJson = document.getElementById('importJson');
+if (importJson) importJson.addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text();
+  try{
+    const data = JSON.parse(text) || {};
+    const W = Array.isArray(data.wake)? data.wake : [];
+    const S = Array.isArray(data.steps)? data.steps : [];
+    const wMap = new Map(loadWake().map(r=>[r.date,r]));
+    W.forEach(r=>wMap.set(r.date, r));
+    const sMap = new Map(loadSteps().map(r=>[r.date,r]));
+    S.forEach(r=>sMap.set(r.date, r));
+    const wRows = Array.from(wMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
+    const sRows = Array.from(sMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
+    saveWake(wRows); saveSteps(sRows); afterWake(wRows); afterSteps(sRows);
+    toast('Imported JSON and merged');
+  }catch{
+    toast('Import failed: bad JSON');
+  }
+});
 
 /* --------------------- modal ----------------------- */
 function openModal(title,html){ const m=$('#modal'); if(!m) return; $('#modalTitle').textContent=title; $('#modalBody').innerHTML=html; m.hidden=false; }
@@ -221,6 +321,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
   initWakeForm(); initStepsForm();
   afterWake(loadWake()); afterSteps(loadSteps());
 
+  // Online/offline dot
+  function updateDot(){ const d=document.querySelector('.status-dot'); if(!d) return; d.classList.toggle('off', !navigator.onLine); }
+  window.addEventListener('online', updateDot);
+  window.addEventListener('offline', updateDot);
+  updateDot();
+
   // PWA (v22)
   if('serviceWorker' in navigator){
     const qs=new URL(window.location.href).searchParams;
@@ -228,6 +334,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
       window.addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=22').then(reg=>reg.update()).catch(()=>{}); });
       let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; window.location.reload(); });
     }
+    navigator.serviceWorker.addEventListener('message', (evt)=>{
+      if (evt.data && evt.data.type === 'SW_ACTIVATED') {
+        toast(`Updated to ${evt.data.version}`, `<button class="btn small" onclick="location.reload()">Reload</button>`);
+      }
+    });
   }
+
   const inst=$('#installInfo'); if(inst) inst.onclick=()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.');
 });

@@ -20,6 +20,9 @@
         </div>
       </div>
 
+      <!-- Online/offline dot -->
+      <div class="status-dot" title="Connection status" aria-hidden="true"></div>
+
       <div class="theme-controls">
         <div class="group" role="group" aria-label="Theme mode">
           <button id="themeLight" class="btn small">Light</button>
@@ -39,6 +42,14 @@
           <input id="importCsv" type="file" accept=".csv" hidden/>
           Import CSV
         </label>
+
+        <!-- JSON backup/restore -->
+        <button id="exportJson" class="btn">Export JSON</button>
+        <label class="btn">
+          <input id="importJson" type="file" accept="application/json" hidden/>
+          Import JSON
+        </label>
+
         <button id="installInfo" class="btn solid">Install</button>
       </div>
     </nav>
@@ -178,7 +189,10 @@
         <div class="row">
           <div class="col">
             <label for="stepsDate">Date</label>
-            <input id="stepsDate" type="date"/>
+            <div class="row">
+              <input id="stepsDate" type="date" style="flex:1"/>
+              <button id="stepsTodayBtn" class="btn">Today</button>
+            </div>
           </div>
           <div class="col">
             <label for="stepsCount">Steps</label>
@@ -255,7 +269,7 @@
 
   <!-- Modal -->
   <div id="modal" class="modal" hidden>
-    <div class="modal-card card">
+    <div class="modal-card card" role="dialog" aria-live="polite" aria-modal="true">
       <div id="modalTitle" class="title mb">Details</div>
       <div id="modalBody" class="muted">—</div>
       <div class="row mt end">
@@ -263,6 +277,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Toast (created dynamically if missing, but aria-live here helps SRs) -->
+  <div id="toast" class="toast" aria-live="polite" hidden></div>
 
   <!-- Load JS -->
   <script defer src="app.js?v=22"></script>
