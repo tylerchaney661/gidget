@@ -1,12 +1,13 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v26.7)
+   Gidget · Hamster Tracker — app.js (v26.8)
    - Wake + Revolutions (km/mi)
    - Calendars with edit/delete popouts
    - Trend charts + tooltips, grid, axis labels
    - Entries tables + search
    - Dashboard/stats, header hide, themes, accents
    - JSON/CSV import/export, PWA SW, FAB, install banner
-   - Distance card cycles Today / Week / Month / Year (label + value)
+   - Distance card cycles Today/Week/Month/Year (label + value)
+   - Adds explicit Today/Week/Month/Year buttons under distance card
    - Robust selectors so distance tile updates even if IDs change
 ========================================================= */
 
@@ -225,8 +226,8 @@ function renderDash(){
     $('#dashWake').textContent = wakeVal;
   }
 
-  // Distance tile (robust DOM lookups)
-  const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
+  // Distance tile
+  const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat') || null;
   if (!box) return;
 
   const labels = ["Today’s distance","This week’s distance","This month’s distance","This year’s distance"];
@@ -237,16 +238,68 @@ function renderDash(){
 
   if (titleEl) titleEl.textContent = labels[dashModeIndex];
   if (valueEl) valueEl.textContent = value;
+
+  // Optional mirror of scope somewhere else (e.g. Trends header)
+  const scopeEl = $('#distScopeLabel');
+  if (scopeEl) scopeEl.textContent = labels[dashModeIndex];
+
+  // Make sure the explicit buttons exist + reflect current state
+  ensureDistanceControls();
 }
 function bindDashToggle(){
   const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
   if (!box) return;
   box.style.cursor = 'pointer';
-  box.addEventListener('click', ()=>{
+  box.addEventListener('click', (e)=>{
+    if (closestEl(e, '.dist-controls')) return; // don't double-trigger when clicking buttons
     dashModeIndex = (dashModeIndex + 1) % dashModes.length;
     localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
     renderDash();
     toast(`Showing ${['today','this week','this month','this year'][dashModeIndex]}`);
+  });
+}
+
+// Inject & wire Today/Week/Month/Year buttons under distance tile
+function ensureDistanceControls(){
+  const host = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
+  if (!host) return;
+
+  let bar = host.querySelector('.dist-controls');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'dist-controls';
+    bar.style.display = 'flex';
+    bar.style.gap = '6px';
+    bar.style.flexWrap = 'wrap';
+    bar.style.marginTop = '8px';
+    bar.innerHTML = `
+      <button type="button" class="btn small" data-mode="today">Today</button>
+      <button type="button" class="btn small" data-mode="week">Week</button>
+      <button type="button" class="btn small" data-mode="month">Month</button>
+      <button type="button" class="btn small" data-mode="year">Year</button>
+    `;
+    const valueEl = host.querySelector('.stat-value');
+    if (valueEl && valueEl.parentElement) valueEl.parentElement.appendChild(bar);
+    else host.appendChild(bar);
+
+    bar.addEventListener('click', (e)=>{
+      const btn = closestEl(e, 'button[data-mode]');
+      if (!btn) return;
+      const mode = btn.getAttribute('data-mode');
+      const idx = ['today','week','month','year'].indexOf(mode);
+      if (idx >= 0) {
+        dashModeIndex = idx;
+        localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
+        renderDash();
+        toast(`Showing ${['today','this week','this month','this year'][dashModeIndex]}`);
+      }
+    });
+  }
+
+  // Highlight active
+  bar.querySelectorAll('button[data-mode]').forEach(b=>{
+    const active = b.getAttribute('data-mode') === dashModes[dashModeIndex];
+    b.classList.toggle('solid', active);
   });
 }
 
@@ -741,8 +794,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   afterWake(loadWake());
   afterRevs(loadRevs());
-  bindDashToggle(); // click the distance card to cycle modes
+  bindDashToggle();
   renderDash();
+  ensureDistanceControls(); // ensure buttons appear immediately
 
   ensureSearchInput('#panel-entries',      '#wakeSearch', ()=>renderWakeTable(loadWake()));
   ensureSearchInput('#panel-revs-entries', '#revsSearch', ()=>renderRevsTable(loadRevs()));
