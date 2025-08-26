@@ -1,13 +1,13 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v26.6)
+   Gidget · Hamster Tracker — app.js (v26.7)
    - Wake + Revolutions (km/mi)
    - Calendars with edit/delete popouts
    - Trend charts + tooltips, grid, axis labels
    - Entries tables + search
    - Dashboard/stats, header hide, themes, accents
    - JSON/CSV import/export, PWA SW, FAB, install banner
-   - NEW: Dashboard distance toggle (today / week / month / year)
-   - Fix: calendars and trends reliably open edit popouts
+   - Distance card cycles Today / Week / Month / Year (label + value)
+   - Robust selectors so distance tile updates even if IDs change
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -32,7 +32,7 @@ function setupCanvas(cv, cssH=260){
 function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
 function movingAvg(arr, n){ if(n<=1) return arr.slice(); const out=[]; let s=0; for(let i=0;i<arr.length;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= s/Math.min(n,i+1); } return out; }
 
-/* Tiny tooltip element (shared by charts) */
+/* Tooltip for charts */
 function ensureTip(){
   let tip = $('#chartTip');
   if(!tip){
@@ -183,9 +183,11 @@ function openModal(title, html){
 }
 
 /* ------------------ dashboard ------------------ */
-// Clickable distance card that cycles: today → week → month → year
+// Distance card cycles: today → week → month → year.
+// Robust selectors: updates .stat-title/.stat-value inside #dashStepsBox (or fallback).
 let dashModeIndex = Number(localStorage.getItem('gidget.distance.modeIndex')||0);
 const dashModes = ['today','week','month','year'];
+
 function calcDistance(mode){
   const rows=loadRevs(), unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
   const now=new Date();
@@ -211,28 +213,39 @@ function calcDistance(mode){
   return '—';
 }
 function renderDash(){
+  // Wake tile
   const w = loadWake(), iso=ymd(new Date());
   const tw = w.find(x=>x.date===iso);
-  $('#dashWake') && ($('#dashWake').textContent = tw? (tw.wake||'—') : '—');
+  const wakeVal = tw ? (tw.wake || '—') : '—';
+  const wakeBox = $('#dashWake')?.closest('.stat') || null;
+  if (wakeBox) {
+    const wakeValueEl = wakeBox.querySelector('.stat-value') || $('#dashWake');
+    if (wakeValueEl) wakeValueEl.textContent = wakeVal;
+  } else if ($('#dashWake')) {
+    $('#dashWake').textContent = wakeVal;
+  }
 
-  const labelMap = ['Today\'s distance','This week\'s distance','This month\'s distance','This year\'s distance'];
-  const val = calcDistance(dashModes[dashModeIndex]);
-  $('#dashSteps') && ($('#dashSteps').textContent = val);
+  // Distance tile (robust DOM lookups)
+  const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
+  if (!box) return;
 
-  // Update label if present; otherwise we leave the static HTML title
-  const lab = $('#dashStepsLabel');
-  if(lab) lab.textContent = labelMap[dashModeIndex];
+  const labels = ["Today’s distance","This week’s distance","This month’s distance","This year’s distance"];
+  const value  = calcDistance(dashModes[dashModeIndex]);
+
+  const titleEl = box.querySelector('.stat-title') || $('#dashStepsLabel');
+  const valueEl = box.querySelector('.stat-value') || $('#dashSteps');
+
+  if (titleEl) titleEl.textContent = labels[dashModeIndex];
+  if (valueEl) valueEl.textContent = value;
 }
 function bindDashToggle(){
-  // Make the distance area (or its card) clickable to cycle the mode
-  const target = $('#dashStepsBox') || $('#dashSteps') || ($('#dashSteps')?.closest('.stat')) || null;
-  if(!target) return;
-  target.style.cursor = 'pointer';
-  target.addEventListener('click', ()=>{
+  const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
+  if (!box) return;
+  box.style.cursor = 'pointer';
+  box.addEventListener('click', ()=>{
     dashModeIndex = (dashModeIndex + 1) % dashModes.length;
     localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
     renderDash();
-    // Gentle feedback
     toast(`Showing ${['today','this week','this month','this year'][dashModeIndex]}`);
   });
 }
@@ -297,7 +310,7 @@ function renderWakeCalendar(){
     if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-low'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.wake||'—'}</div>`;
     cell.dataset.date = iso; cell.setAttribute('role','button'); cell.style.cursor='pointer';
-    cell.addEventListener('click', ()=> openWakeDayModal(iso)); // direct click (reliable)
+    cell.addEventListener('click', ()=> openWakeDayModal(iso));
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openWakeDayModal(iso); }});
     box.appendChild(cell);
   }
@@ -422,7 +435,7 @@ function renderRevsCalendar(){
     if(dist>0){ if(dist<0.5)cell.classList.add('cell-low'); else if(dist<2)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.revs? (dist.toFixed(2)+' '+unit):'—'}</div>`;
     cell.dataset.date = iso; cell.setAttribute('role','button'); cell.style.cursor='pointer';
-    cell.addEventListener('click', ()=> openRevsDayModal(iso)); // direct click (reliable)
+    cell.addEventListener('click', ()=> openRevsDayModal(iso));
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openRevsDayModal(iso); }});
     box.appendChild(cell);
   }
@@ -665,7 +678,7 @@ function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const qs=new URL(location.href).searchParams;
   if(qs.get('nosw')==='1') return;
-  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=26').then(reg=>reg.update()).catch(()=>{}); });
+  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=27').then(reg=>reg.update()).catch(()=>{}); });
   let reloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message', (evt)=>{
@@ -712,7 +725,7 @@ function bindMonthPickers(){
   $('#revsTodayMonth')?.addEventListener('click',()=>{ revsCalRef=new Date(); renderRevsCalendar(); });
 }
 
-/* ------------------ Calendar delegated clicks (kept) -------- */
+/* ------------------ Calendar delegated clicks -------- */
 function bindCalendarClicks(){
   const cal = $('#calendar');
   cal && cal.addEventListener('click', (e)=>{ const cell=closestEl(e,'.cell'); if(!cell) return; const iso=cell.dataset.date; if(!iso) return; openWakeDayModal(iso); });
@@ -728,7 +741,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   afterWake(loadWake());
   afterRevs(loadRevs());
-  bindDashToggle(); // click distance card to cycle modes
+  bindDashToggle(); // click the distance card to cycle modes
   renderDash();
 
   ensureSearchInput('#panel-entries',      '#wakeSearch', ()=>renderWakeTable(loadWake()));
