@@ -159,13 +159,26 @@ function filterRowsRevs(rows, q){
 
 /* ------------------ modals ------------------ */
 function openModal(title, html){
-  const m = $('#modal'); if(!m) return;
+  let m = $('#modal');
+  if(!m){
+    m = document.createElement('div');
+    m.id = 'modal';
+    m.className = 'modal';
+    m.hidden = true;
+    m.innerHTML = `
+      <div class="modal-content">
+        <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
+        <h3 id="modalTitle"></h3>
+        <div id="modalBody"></div>
+      </div>`;
+    document.body.appendChild(m);
+    $('#modalClose').onclick = ()=>$('#modal').hidden = true;
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') $('#modal').hidden = true; });
+  }
   $('#modalTitle').textContent = title;
   $('#modalBody').innerHTML = html;
   m.hidden = false;
 }
-$('#modalClose').onclick = ()=>$('#modal').hidden = true;
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') $('#modal').hidden = true; });
 
 /* ------------------ dashboard ------------------ */
 function renderDash(){
@@ -240,7 +253,9 @@ function renderWakeCalendar(){
     const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
     if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-low'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.wake?rec.wake:'—'}</div>`;
-    cell.onclick=()=>openWakeDayModal(iso);
+    cell.setAttribute('data-date', iso);
+    cell.setAttribute('role', 'button');
+    cell.style.cursor = 'pointer';
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
     box.appendChild(cell);
   }
@@ -368,9 +383,29 @@ function renderRevsCalendar(){
     let dist=0; if(rec&&rec.revs) dist=+rec.revs*mult;
     if(dist>0){ if(dist<0.5)cell.classList.add('cell-low'); else if(dist<2)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.revs? (dist.toFixed(2)+' '+unit):'—'}</div>`;
-    cell.onclick=()=>openRevsDayModal(iso);
+    cell.setAttribute('data-date', iso);
+    cell.setAttribute('role', 'button');
+    cell.style.cursor = 'pointer';
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
     box.appendChild(cell);
+function bindCalendarClicks(){
+  const cal = $('#calendar');
+  if(cal){
+    cal.addEventListener('click', (e)=>{
+      const cell = closestEl(e, '.cell'); if(!cell) return;
+      const iso = cell.getAttribute('data-date'); if(!iso) return;
+      openWakeDayModal(iso);
+    });
+  }
+  const rcal = $('#revsCalendar');
+  if(rcal){
+    rcal.addEventListener('click', (e)=>{
+      const cell = closestEl(e, '.cell'); if(!cell) return;
+      const iso = cell.getAttribute('data-date'); if(!iso) return;
+      openRevsDayModal(iso);
+    });
+  }
+}
   }
 }
 function openRevsDayModal(iso){
@@ -670,7 +705,7 @@ function bindMonthPickers(){
 /* ------------------ Boot ---------------------------- */
 document.addEventListener('DOMContentLoaded', ()=>{
   initTheme(); initUnits();
-  bindHeaderHide(); bindTabs(); bindMonthPickers(); bindWakeChartControls(); bindRevsChartControls();
+  bindHeaderHide(); bindTabs(); bindMonthPickers(); bindCalendarClicks(); bindWakeChartControls(); bindRevsChartControls();
   initWakeForm(); initRevsForm();
 
   afterWake(loadWake());
