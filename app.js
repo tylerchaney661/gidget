@@ -1,5 +1,5 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v26.8)
+   Gidget · Hamster Tracker — app.js (v26.9)
    - Wake + Revolutions (km/mi)
    - Calendars with edit/delete popouts
    - Trend charts + tooltips, grid, axis labels
@@ -7,8 +7,8 @@
    - Dashboard/stats, header hide, themes, accents
    - JSON/CSV import/export, PWA SW, FAB, install banner
    - Distance card cycles Today/Week/Month/Year (label + value)
-   - Adds explicit Today/Week/Month/Year buttons under distance card
-   - Robust selectors so distance tile updates even if IDs change
+   - Explicit Today/Week/Month/Year buttons under distance card
+   - Live distance in Rev Log while typing + reflects unit changes
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -87,11 +87,40 @@ function initTheme(){
   $('#themeDark')?.addEventListener('click',()=>{ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',   localStorage.getItem(ACC_KEY)||'blue'); });
   $$('.swatch').forEach(s=> s.onclick=()=>{ const acc=s.dataset.accent; localStorage.setItem(ACC_KEY,acc); applyTheme(localStorage.getItem(MODE_KEY)||'system',acc); });
 }
+
+/* Live distance helper (used by Rev Log + unit switch) */
+function updateRevsLiveFromInput(){
+  const inp = document.getElementById('revsCount');
+  if(!inp) return;
+  let live = document.getElementById('revsLiveDist');
+  if(!live){
+    live = document.createElement('div');
+    live.id = 'revsLiveDist';
+    live.className = 'tiny';
+    live.style.marginTop = '6px';
+    const parent = inp.closest('.col') || inp.parentElement || inp;
+    parent.appendChild(live);
+  }
+  const unit = localStorage.getItem(UNIT_KEY) || 'km';
+  const mult = UNIT_MULT[unit] || UNIT_MULT.km;
+  const v = +inp.value || 0;
+  live.textContent = v ? `≈ ${(v * mult).toFixed(2)} ${unit}` : '—';
+}
+
 function initUnits(){
   const u = localStorage.getItem(UNIT_KEY) || 'km';
   const km=$('#unitKm'), mi=$('#unitMi');
-  function setU(val){ localStorage.setItem(UNIT_KEY,val); km?.classList.toggle('solid', val==='km'); mi?.classList.toggle('solid', val==='mi'); afterRevs(loadRevs()); drawRevsChart(); renderDash(); }
-  km && (km.onclick=()=>setU('km')); mi && (mi.onclick=()=>setU('mi'));
+  function setU(val){
+    localStorage.setItem(UNIT_KEY,val);
+    km?.classList.toggle('solid', val==='km');
+    mi?.classList.toggle('solid', val==='mi');
+    afterRevs(loadRevs());
+    drawRevsChart();
+    renderDash();
+    updateRevsLiveFromInput(); // reflect unit change in live label
+  }
+  km && (km.onclick=()=>setU('km'));
+  mi && (mi.onclick=()=>setU('mi'));
   setU(u);
 }
 
@@ -184,8 +213,6 @@ function openModal(title, html){
 }
 
 /* ------------------ dashboard ------------------ */
-// Distance card cycles: today → week → month → year.
-// Robust selectors: updates .stat-title/.stat-value inside #dashStepsBox (or fallback).
 let dashModeIndex = Number(localStorage.getItem('gidget.distance.modeIndex')||0);
 const dashModes = ['today','week','month','year'];
 
@@ -239,11 +266,15 @@ function renderDash(){
   if (titleEl) titleEl.textContent = labels[dashModeIndex];
   if (valueEl) valueEl.textContent = value;
 
-  // Optional mirror of scope somewhere else (e.g. Trends header)
-  const scopeEl = $('#distScopeLabel');
+  const scopeEl = $('#distScopeLabel'); // optional mirror elsewhere
   if (scopeEl) scopeEl.textContent = labels[dashModeIndex];
 
-  // Make sure the explicit buttons exist + reflect current state
+  // Hard fallback if valueEl didn't exist or had empty text
+  const hardVal = document.getElementById('dashSteps');
+  if (hardVal && !hardVal.textContent) {
+    hardVal.textContent = value;
+  }
+
   ensureDistanceControls();
 }
 function bindDashToggle(){
@@ -251,15 +282,13 @@ function bindDashToggle(){
   if (!box) return;
   box.style.cursor = 'pointer';
   box.addEventListener('click', (e)=>{
-    if (closestEl(e, '.dist-controls')) return; // don't double-trigger when clicking buttons
+    if (closestEl(e, '.dist-controls')) return; // ignore clicks on the buttons bar
     dashModeIndex = (dashModeIndex + 1) % dashModes.length;
     localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
     renderDash();
     toast(`Showing ${['today','this week','this month','this year'][dashModeIndex]}`);
   });
 }
-
-// Inject & wire Today/Week/Month/Year buttons under distance tile
 function ensureDistanceControls(){
   const host = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
   if (!host) return;
@@ -295,8 +324,6 @@ function ensureDistanceControls(){
       }
     });
   }
-
-  // Highlight active
   bar.querySelectorAll('button[data-mode]').forEach(b=>{
     const active = b.getAttribute('data-mode') === dashModes[dashModeIndex];
     b.classList.toggle('solid', active);
@@ -429,6 +456,14 @@ let revsSmooth= +(localStorage.getItem(RSMOOTH_KEY)||1);
 function initRevsForm(){
   const d=$('#revsDate'); d && (d.value=ymd(new Date()));
   $('#revsTodayBtn')?.addEventListener('click', ()=>{ $('#revsDate').value=ymd(new Date()); });
+
+  // Live distance as you type
+  const revInp = document.getElementById('revsCount');
+  if (revInp) {
+    revInp.addEventListener('input', updateRevsLiveFromInput);
+    updateRevsLiveFromInput(); // initial render
+  }
+
   ['#revsCount','#revsNotes'].forEach(sel=>{
     const el=$(sel); el && el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#revsSave')?.click(); }});
   });
@@ -438,7 +473,7 @@ function initRevsForm(){
     const rows=loadRevs().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
     saveRevs(rows); afterRevs(rows); toast('Revolutions saved ✓');
   });
-  $('#revsClear')?.addEventListener('click', ()=>{ $('#revsCount').value=''; $('#revsNotes').value=''; });
+  $('#revsClear')?.addEventListener('click', ()=>{ $('#revsCount').value=''; $('#revsNotes').value=''; updateRevsLiveFromInput(); });
 }
 function renderRevsToday(rows){
   const t=rows.find(r=>r.date===ymd(new Date())), box=$('#revsTodayBox'); if(!box) return;
@@ -580,16 +615,13 @@ function drawWakeChart(){
 
   if(!data.length) return;
 
-  // smoothing + line
   const sm = movingAvg(data.map(d=>d.v), wakeSmooth);
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
   sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
 
-  // x labels
   const step=Math.max(1, Math.floor(data.length/6)); cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); cx.fillText(d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}), x(i), H-padB+6); }
 
-  // points + interactions
   const pts = data.map((p,i)=>({ x:x(i), y:y(p.v), d:p.d, raw:raw[i]}));
   cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
   function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left, y:p.clientY-r.top, cx:p.clientX, cy:p.clientY}; }
@@ -615,7 +647,6 @@ function drawRevsChart(){
   const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.revs*mult})).sort((a,b)=>a.d.localeCompare(b.d));
   const padL=50,padR=10,padT=12,padB=34;
 
-  // axes + y grid
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
   cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText(`Distance (${unit})`, padL, H-10);
   if(!data.length) return;
@@ -629,15 +660,12 @@ function drawRevsChart(){
   cx.textAlign='right'; cx.textBaseline='middle'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<=4;i++){ const t=i/4; const yv=padT+(1-t)*(H-padT-padB); const v=(yMin + t*(yMax-yMin)); cx.fillText(String(v.toFixed(2)), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); }
 
-  // line
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
   sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
 
-  // x labels
   const step=Math.max(1, Math.floor(data.length/6)); cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); cx.fillText(d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}), x(i), H-padB+6); }
 
-  // points + interactions
   const pts = data.map((p,i)=>({ x:x(i), y:y(sm[i]), d:p.d, dist:p.v }));
   cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
   function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left, y:p.clientY-r.top, cx:p.clientX, cy:p.clientY}; }
@@ -796,7 +824,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   afterRevs(loadRevs());
   bindDashToggle();
   renderDash();
-  ensureDistanceControls(); // ensure buttons appear immediately
+  ensureDistanceControls(); // distance mode buttons appear immediately
 
   ensureSearchInput('#panel-entries',      '#wakeSearch', ()=>renderWakeTable(loadWake()));
   ensureSearchInput('#panel-revs-entries', '#revsSearch', ()=>renderRevsTable(loadRevs()));
