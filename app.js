@@ -1,10 +1,9 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v22 + tidy upgrades)
-   - No optional chaining; stable across TS configs
-   - Wake & Steps: log, trends, calendar (modal details + edit)
-   - Undo delete toasts; Save success toast; inline validation
-   - JSON export/import (merge by date)
-   - Status-dot online/offline; SW update toast
+   Gidget · Hamster Tracker — app.js (v23)
+   - Adds: tooltips, Enter-to-save, compact notes popout, FAB
+   - Color-coded calendars, search, axis labels
+   - Remembered chart settings, auto JSON backup (manual toggle-ready)
+   - Install banner, improved a11y/ARIA, Esc to close
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -67,10 +66,18 @@ function bindHeaderHide(){
 }
 
 /* ------------------ tabs / panels ------------------ */
-function activateTab(name){ $$('#tabs .tab').forEach(t=>t.classList.toggle('active', t.getAttribute('data-tab')===name)); $$('.tabpanel').forEach(p=>p.hidden=(p.id!==('panel-'+name))); }
+function activateTab(name){
+  $$('#tabs .tab').forEach(t=>{
+    const is = t.getAttribute('data-tab')===name;
+    t.classList.toggle('active', is);
+    t.setAttribute('aria-selected', is ? 'true' : 'false');
+  });
+  $$('.tabpanel').forEach(p=>p.hidden=(p.id!==('panel-'+name)));
+}
 function bindTabs(){
   const tabs=$('#tabs'); if(!tabs) return;
-  tabs.addEventListener('click',(e)=>{ const tab=closestEl(e,'.tab'); if(!tab) return; const id=tab.getAttribute('data-tab'); activateTab(id);
+  tabs.addEventListener('click',(e)=>{
+    const tab=closestEl(e,'.tab'); if(!tab) return; const id=tab.getAttribute('data-tab'); activateTab(id);
     if(id==='trends') drawWakeChart(); if(id==='calendar') renderWakeCalendar(); if(id==='entries') renderWakeTable(loadWake());
     if(id==='steps-trends') drawStepsChart(); if(id==='steps-calendar') renderStepsCalendar(); if(id==='steps-entries') renderStepsTable(loadSteps());
   });
@@ -82,264 +89,470 @@ function monthPicker(titleSel,inputSel,getRef,setRef){
   function open(){ const r=getRef(); input.value=`${r.getFullYear()}-${String(r.getMonth()+1).padStart(2,'0')}`; try{ if(typeof input.showPicker==='function') input.showPicker(); else input.click(); }catch{ input.click(); } }
   title.addEventListener('click', open);
   title.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
-  input.addEventListener('change', ()=>{ if(!input.value) return; const [yy,mm]=input.value.split('-').map(Number); setRef(new Date(yy,mm-1,1)); });
+  input.addEventListener('change', ()=>{ if(!input.value) return; const a=input.value.split('-'); const yy=+a[0],mm=+a[1]; setRef(new Date(yy,mm-1,1)); });
 }
 
 /* ---------------------- storage -------------------- */
 const WAKE_KEY='gidget_site_v1', STEPS_KEY='gidget_steps_v1';
+const WRANGE_KEY='gidget.wake.range', WSMOOTH_KEY='gidget.wake.smooth';
+const SRANGE_KEY='gidget.steps.range', SSMOOTH_KEY='gidget.steps.smooth';
+
 function loadWake(){ try{ return JSON.parse(localStorage.getItem(WAKE_KEY))||[]; }catch{ return []; } }
 function saveWake(rows){ localStorage.setItem(WAKE_KEY, JSON.stringify(rows)); }
 function loadSteps(){ try{ return JSON.parse(localStorage.getItem(STEPS_KEY))||[]; }catch{ return []; } }
 function saveSteps(rows){ localStorage.setItem(STEPS_KEY, JSON.stringify(rows)); }
 
-/* =================== Wake module =================== */
-const todayISO=ymd(new Date()); let calRef=new Date();
-
-function validateWake(){
-  const d=$('#date'), t=$('#wake'), w=$('#weight');
-  [d,t,w].forEach(el=>el && el.classList.remove('error'));
-  if(!d.value){ d.classList.add('error'); toast('Date is required'); return false; }
-  if(t.value && !/^\d{2}:\d{2}$/.test(t.value)){ t.classList.add('error'); toast('Time must be HH:MM'); return false; }
-  if(w.value !== '' && (+w.value<0)){ w.classList.add('error'); toast('Weight must be ≥ 0'); return false; }
-  return true;
+/* ------------------ search helpers ------------------ */
+function filterRowsWake(rows, q){
+  if(!q) return rows;
+  q = q.toLowerCase();
+  return rows.filter(r =>
+    (r.date||'').toLowerCase().includes(q) ||
+    (r.wake||'').toLowerCase().includes(q) ||
+    (r.mood||'').toLowerCase().includes(q) ||
+    String(r.weight||'').toLowerCase().includes(q) ||
+    String(r.notes||'').toLowerCase().includes(q)
+  );
 }
+function filterRowsSteps(rows, q){
+  if(!q) return rows;
+  q = q.toLowerCase();
+  return rows.filter(r =>
+    (r.date||'').toLowerCase().includes(q) ||
+    String(r.steps||'').toLowerCase().includes(q) ||
+    String(r.notes||'').toLowerCase().includes(q)
+  );
+}
+
+/* ------------------ modals ------------------ */
+function openModal(title, html){
+  const m = $('#modal'); if(!m) return;
+  $('#modalTitle').textContent = title;
+  $('#modalBody').innerHTML = html;
+  m.hidden = false;
+}
+$('#modalClose').onclick = ()=>$('#modal').hidden = true;
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') $('#modal').hidden = true;
+});
+
+/* ------------------ dashboard ------------------ */
+function renderDash(){
+  const w = loadWake(), s = loadSteps(), iso = ymd(new Date());
+  const tw = w.find(r=>r.date===iso), ts = s.find(r=>r.date===iso);
+  const w7 = (()=>{const d=new Date(); d.setDate(d.getDate()-6); const cut=ymd(d); const xs=w.filter(r=>r.date>=cut&&r.wake).map(r=>toMin(r.wake)); return xs.length? fromMin(Math.round(xs.reduce((a,b)=>a+b,0)/xs.length)) : '—';})();
+  const s7 = (()=>{const d=new Date(); d.setDate(d.getDate()-6); const cut=ymd(d); const xs=s.filter(r=>r.date>=cut&&r.steps).map(r=>+r.steps); return xs.length? Math.round(xs.reduce((a,b)=>a+b,0)/xs.length) : '—';})();
+  const wTxt = tw? (tw.wake||'—') : '—';
+  const sTxt = ts? (ts.steps||'—') : '—';
+  const dw = (w7!=='—' && tw&&tw.wake)? ` (avg ${w7})` : '';
+  const ds = (s7!=='—' && ts&&ts.steps)? ` (avg ${s7})` : '';
+  const dwEl=$('#dashWake'), dsEl=$('#dashSteps');
+  if(dwEl) dwEl.textContent = wTxt + (dw||'');
+  if(dsEl) dsEl.textContent = sTxt + (ds||'');
+}
+
+/* =================== Wake module =================== */
+let calRef=new Date();
 
 function initWakeForm(){
-  const date=$('#date'), nowBtn=$('#nowBtn'), save=$('#save'), clear=$('#clearForm'); if(date) date.value=todayISO;
-  if(nowBtn) nowBtn.onclick=()=>{ const n=new Date(); $('#wake').value=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; };
-  if(save) save.onclick=()=>{ if(!validateWake()) return;
-    const row={date:$('#date').value||todayISO,wake:$('#wake').value||'',weight:$('#weight').value||'',mood:$('#mood').value||'',notes:$('#notes').value||''};
-    const rows=loadWake().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); toast('Saved wake entry ✓');
+  const d = $('#date'); if(d) d.value = ymd(new Date());
+  const nowBtn = $('#nowBtn'); if(nowBtn) nowBtn.onclick = ()=> $('#wake').value = new Date().toTimeString().slice(0,5);
+
+  // Enter to save
+  ['#wake','#weight','#mood','#notes'].forEach(sel=>{
+    const el = $(sel); if(el) el.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){ e.preventDefault(); const sv=$('#save'); if(sv) sv.click(); }
+    });
+  });
+
+  const save=$('#save'); if(save) save.onclick = ()=>{
+    if(!$('#date').value) return toast('Date is required');
+    const row={date:$('#date').value,wake:$('#wake').value,weight:$('#weight').value,mood:$('#mood').value,notes:$('#notes').value};
+    const rows=loadWake().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
+    saveWake(rows); afterWake(rows);
+    toast('Wake saved ✓');
   };
-  if(clear) clear.onclick=()=>{ $('#date').value=todayISO; $('#wake').value=''; $('#weight').value=''; $('#mood').value=''; $('#notes').value=''; };
-  const apply=$('#applyFilter'), reset=$('#resetFilter');
-  if(apply) apply.onclick=()=>renderWakeTable(loadWake());
-  if(reset) reset.onclick=()=>{ $('#filterFrom').value=''; $('#filterTo').value=''; renderWakeTable(loadWake()); };
+  const clear=$('#clearForm'); if(clear) clear.onclick=()=>{$('#wake').value=$('#weight').value=$('#mood').value=$('#notes').value='';};
 }
 
-function renderWakeToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#todayBox').textContent=t?`Today ${t.date}: wake ${t.wake||'—'} · weight ${t.weight||'—'}g · mood ${t.mood||'—'}`:'No entry for today yet.' }
-function renderWakeStats(rows){ let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)} $('#streak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut); const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake)); $('#avg7').textContent=`7‑day avg: ${ts.length?fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)):'—'}` }
+function renderWakeToday(rows){
+  const t=rows.find(r=>r.date===ymd(new Date()));
+  const box=$('#todayBox'); if(!box) return;
+  box.textContent = t?`Today ${t.date}: wake ${t.wake||'—'} · weight ${t.weight||'—'}g · mood ${t.mood||'—'}`:'No entry for today yet.';
+}
+function renderWakeStats(rows){
+  let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)}
+  const streak=$('#streak'); if(streak) streak.textContent=`Streak: ${s} ${s===1?'day':'days'}`;
+  const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut);
+  const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake));
+  const avg7=$('#avg7'); if(avg7) avg7.textContent=`7-day avg: ${ts.length?fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)):'—'}`;
+}
+
 function renderWakeTable(rows){
-  const tb=$('#table tbody'); if(!tb) return; tb.innerHTML='';
-  const f1=$('#filterFrom').value||'', f2=$('#filterTo').value||'';
-  rows.filter(r=>(!f1||r.date>=f1)&&(!f2||r.date<=f2)).sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
+  const tb = $('#table tbody'); if(!tb) return; tb.innerHTML='';
+  // ensure search input exists
+  ensureSearchInput('#panel-entries', '#wakeSearch', term=>renderWakeTable(loadWake()));
+  const q = ($('#wakeSearch') && $('#wakeSearch').value) || '';
+  const data = filterRowsWake(rows, q);
+  data.sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td><td>${r.food||'—'}</td><td>${r.sand||'—'}</td><td>${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</td><td><button class="btn small" data-del="${r.date}">Delete</button></td>`;
+    tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td>
+      <td class="notesCell"><button class="noteIcon">ℹ</button></td>
+      <td><button class="btn small" data-del="${r.date}">Delete</button></td>`;
+    tr.querySelector('.noteIcon').onclick=()=>openModal('Notes', r.notes ? String(r.notes).replace(/</g,'&lt;') : '—');
     tb.appendChild(tr);
   });
-  tb.onclick = (e) => {
-    const btn = e.target;
-    const d = (btn && btn.getAttribute) ? btn.getAttribute('data-del') : null;
-    if (!d) return;
-    const all = loadWake();
-    const deleted = all.find(r => r.date === d);
-    const left = all.filter(r => r.date !== d);
+  tb.onclick = (e)=>{
+    const d=e.target && e.target.getAttribute ? e.target.getAttribute('data-del') : null;
+    if(!d) return;
+    const all=loadWake(), deleted=all.find(r=>r.date===d), left=all.filter(r=>r.date!==d);
     saveWake(left); afterWake(left);
     toast(`Deleted wake entry ${d}`, `<button class="btn small" id="undoWake">Undo</button>`);
-    const u = document.getElementById('undoWake');
-    if (u) u.onclick = () => {
-      const rows = loadWake().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date));
-      saveWake(rows); afterWake(rows);
-    };
+    const u=$('#undoWake');
+    if(u) u.onclick=()=>{ const rows=loadWake().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); };
   };
-}
-
-let wakeRange=7, wakePts=[];
-document.addEventListener('click', (e)=>{ const b=closestEl(e,'.rangeBtn'); if(b){ wakeRange=+b.getAttribute('data-range'); drawWakeChart(); }});
-{ const el=$('#smooth'); if(el) el.addEventListener('change', drawWakeChart); }
-
-function drawWakeChart(){
-  const rows=loadWake().filter(r=>r.wake), cv=$('#chart'); if(!cv) return;
-  const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H); wakePts=[];
-  const start=new Date(); start.setDate(start.getDate()-wakeRange+1);
-  const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
-  const chartMeta=$('#chartMeta'); if(chartMeta) chartMeta.textContent=data.length?`${data.length} points`:'No data in range';
-  const padL=50,padR=12,padT=12,padB=28; const cs=getComputedStyle(document.body); const line=cs.getPropertyValue('--line').trim(), acc=cs.getPropertyValue('--acc').trim(), muted=cs.getPropertyValue('--muted').trim();
-  cx.strokeStyle=line; cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
-  function yMap(mins){ let v=mins; if(v<900) v+=1440; const min=900,max=1800; const t=(v-min)/(max-min); return padT+(1-t)*(H-padT-padB) }
-  cx.fillStyle=muted; cx.textAlign='right'; cx.textBaseline='middle'; cx.font='12px system-ui';
-  [18*60,21*60,0,3*60].forEach(t=>{const y=yMap(t); cx.fillText(fromMin((t+1440)%1440),padL-6,y); cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(W-padR,y); cx.stroke();});
-  if(!data.length) return;
-  const x=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  const dayLabel=s=>{const d=new Date(s+'T00:00:00'); return (wakeRange<=14)? d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'}) : d.toLocaleDateString(undefined,{day:'2-digit',month:'short'})};
-  const monthLabel=s=>{const d=new Date(s+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',year:wakeRange>365?'2-digit':'numeric'})};
-  let ticks=[];
-  if(wakeRange<=14){for(let i=0;i<data.length;i++){if(i===0||i===data.length-1||i%2===0) ticks.push({i,text:dayLabel(data[i].d)});}}
-  else if(wakeRange<=90){let last=-1; for(let i=0;i<data.length;i++){const d=new Date(data[i].d+'T00:00:00'); const nm=d.getMonth()!==last; if(nm||i%5===0||i===data.length-1){ticks.push({i,text:monthLabel(data[i].d)}); last=d.getMonth();}}}
-  else{let seen={}; for(let i=0;i<data.length;i++){const d=new Date(data[i].d+'T00:00:00'); const k=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[k]){seen[k]=true; ticks.push({i,text:d.toLocaleDateString(undefined,{month:'short'})});}}}
-  cx.fillStyle=muted; cx.textAlign='center'; cx.textBaseline='top'; ticks.forEach(t=>cx.fillText(t.text,x(t.i),H-padB+6));
-  cx.fillStyle=acc; data.forEach((p,i)=>{const X=x(i),Y=yMap(p.m); wakePts.push({X,Y,date:p.d}); cx.beginPath(); cx.arc(X,Y,2.5,0,Math.PI*2); cx.fill();});
-  const k=+( ($('#smooth')&&$('#smooth').value) || 1 ); const vals=data.map(d=>{let v=d.m; if(v<900)v+=1440; return v}); const sm=((arr,n)=>{if(n<=1)return arr.slice();const out=[];let s=0;for(let i=0;i<arr.length;i++){s+=arr[i]; if(i>=n)s-=arr[i-n]; out.push(i>=n-1? s/Math.min(n,i+1):arr[i])} return out})(vals,k);
-  cx.strokeStyle=acc; cx.lineWidth=2; cx.beginPath(); sm.forEach((v,i)=>{const X=x(i),Y=padT+(1-((v-900)/(1800-900)))*(H-padT-padB); i?cx.lineTo(X,Y):cx.moveTo(X,Y)}); cx.stroke();
-  function getXY(e){const r=cv.getBoundingClientRect(); const p=(e&&e.touches&&e.touches[0])?e.touches[0]:e; return {x:p.clientX-r.left,y:p.clientY-r.top}}
-  function handle(e){ if(!wakePts.length) return; const pos=getXY(e); let best=null,d2=1e12; for(const p of wakePts){const dx=pos.x-p.X,dy=pos.y-p.Y,dd=dx*dx+dy*dy; if(dd<d2){d2=dd;best=p}} if(best && d2<=16*16){ const r=loadWake().find(z=>z.date===best.date)||{}; openModal(`Wake • ${best.date}`, `<div><b>Wake</b>: ${r.wake||'—'}</div><div><b>Weight</b>: ${r.weight||'—'} g</div><div><b>Mood</b>: ${r.mood||'—'}</div><div class="mt"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>`);} }
-  cv.onclick=handle; cv.addEventListener('touchstart', handle, {passive:true});
 }
 
 function renderWakeCalendar(){
   const rows=loadWake(); const box=$('#calendar'); if(!box) return; box.innerHTML='';
   const title=$('#calTitle'); if(title) title.textContent=calRef.toLocaleString(undefined,{month:'long',year:'numeric'});
-  const y=calRef.getFullYear(), m=calRef.getMonth(); const first=new Date(y,m,1); const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
-  for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
-    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45; cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.wake?rec.wake:'—'}</div>`;
-    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Wake</b>: ${rec.wake||'—'}</div><div><b>Weight</b>: ${rec.weight||'—'} g</div><div><b>Mood</b>: ${rec.mood||'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div><div class="row mt end"><button id="editDayBtn" class="btn solid">Edit this day</button></div>`; }
-      else { html=`<div>No wake entry for ${iso}.</div><div class="row mt end"><button id="editDayBtn" class="btn solid">Add entry</button></div>`; }
-      openModal('Wake • '+iso, html);
-      const edit=$('#editDayBtn'); if(edit){ edit.onclick=()=>{ activateTab('log'); $('#date').value=iso; $('#wake').value=(rec&&rec.wake)||''; $('#weight').value=(rec&&rec.weight)||''; $('#mood').value=(rec&&rec.mood)||''; $('#notes').value=(rec&&rec.notes)||''; $('#modal').hidden=true; }; }
-    };
+  const y=calRef.getFullYear(), m=calRef.getMonth(); const first=new Date(y,m,1);
+  const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
+    if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-early'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-late'); }
+    cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.wake?rec.wake:'—'}</div>`;
+    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Wake</b>: ${rec.wake||'—'}</div><div><b>Weight</b>: ${rec.weight||'—'} g</div><div><b>Mood</b>: ${rec.mood||'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div>`; } else { html=`<div>No wake entry for ${iso}.</div>`; } openModal('Wake • '+iso, html); };
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
     box.appendChild(cell);
   }
 }
 
 /* =================== Steps module =================== */
-let stepsCalRef=new Date(), stepsRange=7;
-
-function validateSteps(){
-  const d=$('#stepsDate'), s=$('#stepsCount');
-  [d,s].forEach(el=>el && el.classList.remove('error'));
-  if(!d.value){ d.classList.add('error'); toast('Date is required'); return false; }
-  if(s.value !== '' && (+s.value<0)){ s.classList.add('error'); toast('Steps must be ≥ 0'); return false; }
-  return true;
-}
+let stepsCalRef=new Date();
 
 function initStepsForm(){
-  const d=$('#stepsDate'); if(d) d.value=todayISO;
-  const todayBtn=$('#stepsTodayBtn'); if(todayBtn) todayBtn.onclick=()=>{ $('#stepsDate').value=todayISO; };
-  const save=$('#stepsSave'); if(save) save.onclick=()=>{ if(!validateSteps()) return;
-    const row={date:$('#stepsDate').value||todayISO,steps:$('#stepsCount').value||'',notes:$('#stepsNotes').value||''};
-    const rows=loadSteps().filter(r=>r.date!==row.date); rows.push(row); rows.sort((a,b)=>a.date.localeCompare(b.date)); saveSteps(rows); afterSteps(rows); toast('Saved steps ✓');
+  const d=$('#stepsDate'); if(d) d.value=ymd(new Date());
+  const todayBtn=$('#stepsTodayBtn'); if(todayBtn) todayBtn.onclick=()=>{ $('#stepsDate').value=ymd(new Date()); };
+  ['#stepsCount','#stepsNotes'].forEach(sel=>{
+    const el=$(sel); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const b=$('#stepsSave'); if(b) b.click(); }});
+  });
+  const save=$('#stepsSave'); if(save) save.onclick=()=>{
+    if(!$('#stepsDate').value) return toast('Date is required');
+    const row={date:$('#stepsDate').value,steps:$('#stepsCount').value,notes:$('#stepsNotes').value};
+    const rows=loadSteps().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
+    saveSteps(rows); afterSteps(rows); toast('Steps saved ✓');
   };
-  const clr=$('#stepsClear'); if(clr) clr.onclick=()=>{ $('#stepsDate').value=todayISO; $('#stepsCount').value=''; $('#stepsNotes').value=''; };
-  { const el=$('#stepsSmooth'); if(el) el.addEventListener('change', drawStepsChart); }
-  document.addEventListener('click',(e)=>{ const b=closestEl(e,'.stepsRangeBtn'); if(b){ stepsRange=+b.getAttribute('data-range'); drawStepsChart(); }});
+  const clr=$('#stepsClear'); if(clr) clr.onclick=()=>{ $('#stepsCount').value=''; $('#stepsNotes').value=''; };
 }
 
-function renderStepsToday(rows){ const t=rows.find(r=>r.date===todayISO); $('#stepsTodayBox').textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.' }
-function renderStepsStats(rows){ let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)} $('#stepsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`; const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut); const vals=rows.filter(r=>r.date>=iso && r.steps).map(r=>+r.steps); $('#stepsAvg7').textContent=`7‑day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'}` }
-function renderStepsTable(rows){ const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML=''; rows.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td><td>${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</td><td><button class="btn small" data-sdel="${r.date}">Delete</button></td>`; tb.appendChild(tr); });
-  tb.onclick = (e) => {
-    const btn = e.target;
-    const d = (btn && btn.getAttribute) ? btn.getAttribute('data-sdel') : null;
-    if (!d) return;
-    const all = loadSteps();
-    const deleted = all.find(r => r.date === d);
-    const left = all.filter(r => r.date !== d);
+function renderStepsToday(rows){
+  const t=rows.find(r=>r.date===ymd(new Date())); const box=$('#stepsTodayBox'); if(!box) return;
+  box.textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.';
+}
+function renderStepsStats(rows){
+  let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)}
+  const streak=$('#stepsStreak'); if(streak) streak.textContent=`Streak: ${s} ${s===1?'day':'days'}`;
+  const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut);
+  const vals=rows.filter(r=>r.date>=iso&&r.steps).map(r=>+r.steps);
+  const avg7=$('#stepsAvg7'); if(avg7) avg7.textContent=`7-day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'}`;
+}
+
+function renderStepsTable(rows){
+  const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML='';
+  ensureSearchInput('#panel-steps-entries', '#stepsSearch', term=>renderStepsTable(loadSteps()));
+  const q=($('#stepsSearch')&&$('#stepsSearch').value)||'';
+  const data=filterRowsSteps(rows, q);
+  data.sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td>
+      <td class="notesCell"><button class="noteIcon">ℹ</button></td>
+      <td><button class="btn small" data-sdel="${r.date}">Delete</button></td>`;
+    tr.querySelector('.noteIcon').onclick=()=>openModal('Notes', r.notes ? String(r.notes).replace(/</g,'&lt;'):'—');
+    tb.appendChild(tr);
+  });
+  tb.onclick=(e)=>{
+    const d=e.target && e.target.getAttribute ? e.target.getAttribute('data-sdel') : null;
+    if(!d) return;
+    const all=loadSteps(), deleted=all.find(r=>r.date===d), left=all.filter(r=>r.date!==d);
     saveSteps(left); afterSteps(left);
     toast(`Deleted steps ${d}`, `<button class="btn small" id="undoSteps">Undo</button>`);
-    const u = document.getElementById('undoSteps');
-    if (u) u.onclick = () => {
-      const rows = loadSteps().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date));
-      saveSteps(rows); afterSteps(rows);
-    };
+    const u=$('#undoSteps');
+    if(u) u.onclick=()=>{ const rows=loadSteps().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveSteps(rows); afterSteps(rows); };
   };
-}
-
-function drawStepsChart(){
-  const rows=loadSteps().filter(r=>r.steps), cv=$('#stepsChart'); if(!cv) return; const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
-  const start=new Date(); start.setDate(start.getDate()-stepsRange+1); const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
-  const meta=$('#stepsChartMeta'); if(meta) meta.textContent=data.length?`${data.length} points`:'No data in range';
-  const padL=50,padR=12,padT=12,padB=28; const cs=getComputedStyle(document.body); const line=cs.getPropertyValue('--line').trim(), acc=cs.getPropertyValue('--acc').trim(), muted=cs.getPropertyValue('--muted').trim();
-  cx.strokeStyle=line; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
-  if(!data.length) return;
-  const x=(i)=> padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  const mLabel=s=>{const d=new Date(s+'T00:00:00'); return d.toLocaleDateString(undefined,{month:'short',year:stepsRange>365?'2-digit':'numeric'})};
-  let ticks=[];
-  if(stepsRange<=14){for(let i=0;i<data.length;i++){ if(i===0||i===data.length-1||i%2===0){ const d=new Date(data[i].d+'T00:00:00'); ticks.push({i,text:d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'})}); }}}
-  else if(stepsRange<=90){let last=-1; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const nm=d.getMonth()!==last; if(nm||i%5===0||i===data.length-1){ ticks.push({i,text:mLabel(data[i].d)}); last=d.getMonth(); }}}
-  else{let seen={}; for(let i=0;i<data.length;i++){ const d=new Date(data[i].d+'T00:00:00'); const k=`${d.getFullYear()}-${d.getMonth()}`; if(!seen[k]){ seen[k]=true; ticks.push({i,text:d.toLocaleDateString(undefined,{month:'short'})}); }}}
-  cx.fillStyle=muted; cx.textAlign='center'; cx.textBaseline='top'; ticks.forEach(t=>cx.fillText(t.text,x(t.i),H-padB+6));
-  const vals=data.map(p=>p.v), yMin=Math.max(0,Math.floor(Math.min.apply(null,vals)*0.95)), yMax=Math.ceil((Math.max.apply(null,vals)||1)*1.05);
-  cx.textAlign='right'; cx.textBaseline='middle'; for(let i=0;i<=5;i++){const t=i/5; const y=padT+(1-t)*(H-padT-padB); const v=Math.round(yMin+t*(yMax-yMin)); cx.fillText(String(v),padL-6,y); cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(W-padR,y); cx.stroke();}
-  const k=+( ($('#stepsSmooth')&&$('#stepsSmooth').value) || 1 ); const sm=((arr,n)=>{if(n<=1)return arr.slice();const out=[];let s=0;for(let i=0;i<arr.length;i++){s+=arr[i]; if(i>=n)s-=arr[i-n]; out.push(i>=n-1? s/Math.min(n,i+1):arr[i])}return out})(vals,k);
-  cx.strokeStyle=acc; cx.lineWidth=2; cx.beginPath(); sm.forEach((v,i)=>{const X=x(i),Y=padT+(1-((v-yMin)/(yMax-yMin)))*(H-padT-padB); i?cx.lineTo(X,Y):cx.moveTo(X,Y)}); cx.stroke();
 }
 
 function renderStepsCalendar(){
   const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return; box.innerHTML='';
   const title=$('#stepsCalTitle'); if(title) title.textContent=stepsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
-  const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth(); const first=new Date(y,m,1); const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
-  for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
-    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45; cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.steps?rec.steps:'—'}</div>`;
-    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Steps</b>: ${rec.steps||'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div><div class="row mt end"><button id="editStepsDayBtn" class="btn solid">Edit this day</button></div>`; }
-      else { html=`<div>No steps entry for ${iso}.</div><div class="row mt end"><button id="editStepsDayBtn" class="btn solid">Add entry</button></div>`; }
-      openModal('Steps • '+iso, html);
-      const edit=$('#editStepsDayBtn'); if(edit){ edit.onclick=()=>{ activateTab('steps-log'); $('#stepsDate').value=iso; $('#stepsCount').value=(rec&&rec.steps)||''; $('#stepsNotes').value=(rec&&rec.notes)||''; $('#modal').hidden=true; }; }
-    };
+  const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth(); const first=new Date(y,m,1);
+  const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
+    if(rec&&rec.steps){ const v=+rec.steps; if(v<5000)cell.classList.add('cell-low'); else if(v<12000)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
+    cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.steps?rec.steps:'—'}</div>`;
+    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Steps</b>: ${rec.steps||'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div>`; } else { html=`<div>No steps entry for ${iso}.</div>`; } openModal('Steps • '+iso, html); };
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
     box.appendChild(cell);
   }
 }
 
-function afterWake(rows){ renderWakeToday(rows); renderWakeStats(rows); renderWakeTable(rows); drawWakeChart(); renderWakeCalendar(); }
-function afterSteps(rows){ renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); drawStepsChart(); renderStepsCalendar(); }
+/* ------------------ charts ------------------ */
+let wakeRange = +(localStorage.getItem(WRANGE_KEY)||7);
+let wakeSmooth= +(localStorage.getItem(WSMOOTH_KEY)||1);
+let stepsRange= +(localStorage.getItem(SRANGE_KEY)||7);
+let stepsSmooth=+(localStorage.getItem(SSMOOTH_KEY)||1);
 
-/* ---------------- CSV export / import --------------- */
-const exportBtn=$('#exportCsv'); if(exportBtn) exportBtn.onclick=()=>{ const wake=loadWake(), steps=loadSteps();
-  const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
-  const lines=[...wake.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(',')), ...steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(','))];
-  const blob=new Blob([header+lines.join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click(); };
-const importEl=$('#importCsv'); if(importEl) importEl.addEventListener('change',(e)=>{ const f=e.target.files[0]; if(!f) return; f.text().then((text)=>{ const lines=text.trim().split(/\r?\n/); const header=lines.shift().split(','); const idxType=header.indexOf('Type'); const W=[],S=[]; lines.forEach(ln=>{ const p=ln.split(','); const type=(idxType>=0?p[idxType]:'wake'); if(type==='steps'){ S.push({date:p[1],steps:p[6]||'',notes:p[5]||''}); } else { W.push({date:p[1],wake:p[2]||'',weight:p[3]||'',mood:p[4]||'',notes:p[5]||''}); } }); saveWake(W); saveSteps(S); afterWake(W); afterSteps(S); toast('Imported CSV'); }); });
+function bindChartControls(){
+  const smooth=$('#smooth'); if(smooth){ smooth.value=String(wakeSmooth); smooth.addEventListener('change',()=>{ wakeSmooth=+smooth.value; localStorage.setItem(WSMOOTH_KEY,String(wakeSmooth)); drawWakeChart(); }); }
+  $$('.rangeBtn').forEach(b=> b.addEventListener('click',()=>{ wakeRange=+b.getAttribute('data-range'); localStorage.setItem(WRANGE_KEY,String(wakeRange)); drawWakeChart(); }));
 
-/* ---------------- JSON export / import -------------- */
-const exportJson = document.getElementById('exportJson');
-if (exportJson) exportJson.onclick = () => {
-  const blob = new Blob([JSON.stringify({ wake: loadWake(), steps: loadSteps() }, null, 2)], { type:'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v22.json'; a.click();
-};
-const importJson = document.getElementById('importJson');
-if (importJson) importJson.addEventListener('change', async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  const text = await f.text();
-  try{
-    const data = JSON.parse(text) || {};
-    const W = Array.isArray(data.wake)? data.wake : [];
-    const S = Array.isArray(data.steps)? data.steps : [];
-    const wMap = new Map(loadWake().map(r=>[r.date,r]));
-    W.forEach(r=>wMap.set(r.date, r));
-    const sMap = new Map(loadSteps().map(r=>[r.date,r]));
-    S.forEach(r=>sMap.set(r.date, r));
-    const wRows = Array.from(wMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
-    const sRows = Array.from(sMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
-    saveWake(wRows); saveSteps(sRows); afterWake(wRows); afterSteps(sRows);
-    toast('Imported JSON and merged');
-  }catch{
-    toast('Import failed: bad JSON');
+  const sSmooth=$('#stepsSmooth'); if(sSmooth){ sSmooth.value=String(stepsSmooth); sSmooth.addEventListener('change',()=>{ stepsSmooth=+sSmooth.value; localStorage.setItem(SSMOOTH_KEY,String(stepsSmooth)); drawStepsChart(); }); }
+  $$('.stepsRangeBtn').forEach(b=> b.addEventListener('click',()=>{ stepsRange=+b.getAttribute('data-range'); localStorage.setItem(SRANGE_KEY,String(stepsRange)); drawStepsChart(); }));
+}
+
+function movingAvg(arr, n){
+  if(n<=1) return arr.slice();
+  const out=[], len=arr.length; let s=0;
+  for(let i=0;i<len;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= i>=n-1 ? s/Math.min(n,i+1) : arr[i]; }
+  return out;
+}
+
+function drawWakeChart(){
+  const rows=loadWake().filter(r=>r.wake);
+  const cv=$('#chart'); if(!cv) return;
+  const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
+  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-wakeRange+1);
+  const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
+  const padL=50,padR=10,padT=12,padB=34;
+  cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
+  cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText("Time (HH:MM)", padL, H-10);
+
+  const min=900,max=1800;
+  const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
+  const y=m => padT + (1-((m-min)/(max-min)))*(H-padT-padB);
+
+  // grid labels
+  cx.textAlign='right'; cx.textBaseline='middle';
+  [18*60,21*60,0,3*60].forEach(t=>{ const yv=y((t+1440)%1440<900 ? (t+1440) : t); cx.fillText(fromMin((t+1440)%1440), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.stroke(); });
+
+  if(!data.length) return;
+
+  const vals = data.map(d=>{let v=d.m; if(v<900) v+=1440; return v;});
+  const sm = movingAvg(vals, wakeSmooth);
+
+  // line
+  cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
+  sm.forEach((v,i)=>{ const yv=padT+(1-((v-900)/(1800-900)))*(H-padT-padB); const xv=x(i); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); });
+  cx.stroke();
+
+  // points & interaction
+  const pts=[]; cx.fillStyle=getCSS('--acc');
+  data.forEach((p,i)=>{ const X=x(i), Y=y(p.m<900?p.m+1440:p.m); pts.push({X,Y,date:p.d}); cx.beginPath(); cx.arc(X,Y,2.5,0,Math.PI*2); cx.fill(); });
+
+  function getPos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left,y:p.clientY-r.top}; }
+  function handle(e){ if(!pts.length) return; const pos=getPos(e); let best=null,d2=1e12; for(const p of pts){ const dx=pos.x-p.X, dy=pos.y-p.Y, dd=dx*dx+dy*dy; if(dd<d2){ d2=dd; best=p; } } if(best && d2<=18*18){ const r=loadWake().find(z=>z.date===best.date)||{}; openModal(`Wake • ${best.date}`, `<div><b>Wake</b>: ${r.wake||'—'}</div><div><b>Weight</b>: ${r.weight||'—'} g</div><div><b>Mood</b>: ${r.mood||'—'}</div><div class="mt"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>`); } }
+  cv.onclick=handle; cv.addEventListener('touchstart', handle, {passive:true});
+
+  // x labels
+  const ticks=[]; const labelDay=s=>{const d=new Date(s+'T00:00:00'); return d.toLocaleDateString(undefined,{day:'2-digit',month:'short'});};
+  const step=Math.max(1, Math.floor(data.length/6));
+  for(let i=0;i<data.length;i+=step){ ticks.push({i,text:labelDay(data[i].d)}); }
+  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
+  ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
+}
+
+function drawStepsChart(){
+  const rows=loadSteps().filter(r=>r.steps);
+  const cv=$('#stepsChart'); if(!cv) return;
+  const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
+  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-stepsRange+1);
+  const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
+  const padL=50,padR=10,padT=12,padB=34;
+  cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
+  cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText("Steps", padL, H-10);
+
+  if(!data.length) return;
+
+  const vals=data.map(d=>d.v); const yMin=Math.max(0, Math.floor(Math.min.apply(null, vals)*0.95)); const yMax=Math.max(1, Math.ceil(Math.max.apply(null, vals)*1.05));
+  const sm = movingAvg(vals, stepsSmooth);
+
+  const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
+  const y=v => padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB);
+
+  // horizontal grid labels
+  cx.textAlign='right'; cx.textBaseline='middle'; cx.fillStyle=getCSS('--muted');
+  for(let i=0;i<=4;i++){ const t=i/4; const yv=padT+(1-t)*(H-padT-padB); const v=Math.round(yMin + t*(yMax-yMin)); cx.fillText(String(v), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); }
+
+  // line
+  cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
+  sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); });
+  cx.stroke();
+
+  // x labels
+  const ticks=[]; const step=Math.max(1, Math.floor(data.length/6));
+  for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); ticks.push({i,text:d.toLocaleDateString(undefined,{day:'2-digit',month:'short'})}); }
+  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
+  ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
+}
+
+function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
+
+/* ------------------ after save ------------------ */
+function afterWake(rows){ renderWakeToday(rows); renderWakeStats(rows); renderWakeTable(rows); renderWakeCalendar(); drawWakeChart(); renderDash(); }
+function afterSteps(rows){ renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); renderStepsCalendar(); drawStepsChart(); renderDash(); }
+
+/* ------------------ search inputs (auto-add) ------- */
+function ensureSearchInput(panelSel, inputIdSel, onInput){
+  const panel=$(panelSel); if(!panel) return;
+  let inp=$(inputIdSel);
+  if(!inp){
+    const h3=panel.querySelector('h3') || panel.querySelector('table') || panel.firstChild;
+    const wrap=document.createElement('div'); wrap.className='row mt'; wrap.style.justifyContent='flex-end';
+    inp=document.createElement('input'); inp.className='search'; inp.id=inputIdSel.replace('#',''); inp.placeholder='Search…';
+    wrap.appendChild(inp);
+    if(h3 && h3.parentNode) h3.parentNode.insertBefore(wrap, h3.nextSibling);
   }
-});
+  if(inp && onInput){ inp.oninput=()=> onInput(inp.value); }
+}
 
-/* --------------------- modal ----------------------- */
-function openModal(title,html){ const m=$('#modal'); if(!m) return; $('#modalTitle').textContent=title; $('#modalBody').innerHTML=html; m.hidden=false; }
-const modalClose=$('#modalClose'); if(modalClose) modalClose.onclick=()=>{ $('#modal').hidden=true; };
+/* ------------------ JSON Export/Import -------------- */
+(function bindJson(){
+  const exportJson = $('#exportJson');
+  if (exportJson) exportJson.onclick = () => {
+    const blob = new Blob([JSON.stringify({ wake: loadWake(), steps: loadSteps() }, null, 2)], { type:'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v23.json'; a.click();
+  };
+  const importJson = $('#importJson');
+  if (importJson) importJson.addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try{
+      const data = JSON.parse(await f.text()) || {};
+      const W = Array.isArray(data.wake)? data.wake : [];
+      const S = Array.isArray(data.steps)? data.steps : [];
+      const wMap = new Map(loadWake().map(r=>[r.date,r])); W.forEach(r=>wMap.set(r.date, r));
+      const sMap = new Map(loadSteps().map(r=>[r.date,r])); S.forEach(r=>sMap.set(r.date, r));
+      const wRows = Array.from(wMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
+      const sRows = Array.from(sMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
+      saveWake(wRows); saveSteps(sRows); afterWake(wRows); afterSteps(sRows);
+      toast('Imported JSON and merged');
+    }catch{ toast('Import failed: bad JSON'); }
+  });
+})();
 
-/* ---------------------- boot ----------------------- */
-document.addEventListener('DOMContentLoaded', ()=>{
-  initTheme(); bindHeaderHide(); bindTabs();
-  monthPicker('#calTitle','#monthPicker',()=>calRef,(d)=>{calRef=d; renderWakeCalendar();});
-  monthPicker('#stepsCalTitle','#stepsMonthPicker',()=>stepsCalRef,(d)=>{stepsCalRef=d; renderStepsCalendar();});
-
-  initWakeForm(); initStepsForm();
-  afterWake(loadWake()); afterSteps(loadSteps());
-
-  // Online/offline dot
-  function updateDot(){ const d=document.querySelector('.status-dot'); if(!d) return; d.classList.toggle('off', !navigator.onLine); }
-  window.addEventListener('online', updateDot);
-  window.addEventListener('offline', updateDot);
-  updateDot();
-
-  // PWA (v22)
-  if('serviceWorker' in navigator){
-    const qs=new URL(window.location.href).searchParams;
-    if(!(qs.has('nosw')||qs.get('nosw')==='1')){
-      window.addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=22').then(reg=>reg.update()).catch(()=>{}); });
-      let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; window.location.reload(); });
-    }
-    navigator.serviceWorker.addEventListener('message', (evt)=>{
-      if (evt.data && evt.data.type === 'SW_ACTIVATED') {
-        toast(`Updated to ${evt.data.version}`, `<button class="btn small" onclick="location.reload()">Reload</button>`);
-      }
+/* ------------------ CSV Export/Import (keep) -------- */
+(function bindCsv(){
+  const exportBtn=$('#exportCsv');
+  if(exportBtn) exportBtn.onclick=()=>{ 
+    const wake=loadWake(), steps=loadSteps();
+    const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
+    const lines=[
+      ...wake.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(',')),
+      ...steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(','))
+    ];
+    const blob=new Blob([header+lines.join('\n')],{type:'text/csv'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
+  };
+  const importEl=$('#importCsv');
+  if(importEl) importEl.addEventListener('change',(e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    f.text().then((text)=>{
+      const lines=text.trim().split(/\r?\n/); const header=lines.shift().split(',');
+      const idxType=header.indexOf('Type'); const W=[],S=[];
+      lines.forEach(ln=>{
+        const p=ln.split(',');
+        const type=(idxType>=0?p[idxType]:'wake');
+        if(type==='steps'){ S.push({date:p[1],steps:p[6]||'',notes:p[5]||''}); }
+        else { W.push({date:p[1],wake:p[2]||'',weight:p[3]||'',mood:p[4]||'',notes:p[5]||''}); }
+      });
+      saveWake(W); saveSteps(S); afterWake(W); afterSteps(S);
+      toast('Imported CSV');
     });
-  }
+  });
+})();
 
-  const inst=$('#installInfo'); if(inst) inst.onclick=()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.');
+/* ------------------ Online/offline + SW ------------- */
+function updateDot(){ const d=document.querySelector('.status-dot'); if(!d) return; d.classList.toggle('off', !navigator.onLine); }
+window.addEventListener('online', updateDot);
+window.addEventListener('offline', updateDot);
+
+/* SW register (respect ?nosw=1 like v22) */
+function registerSW(){
+  if(!('serviceWorker' in navigator)) return;
+  const qs=new URL(window.location.href).searchParams;
+  if(qs.get('nosw')==='1') return;
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=23').then(reg=>reg.update()).catch(()=>{}); });
+  let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; window.location.reload(); });
+  navigator.serviceWorker.addEventListener('message', (evt)=>{
+    if (evt.data && evt.data.type === 'SW_ACTIVATED') {
+      toast(`Updated to ${evt.data.version}`, `<button class="btn small" onclick="location.reload()">Reload</button>`);
+    }
+  });
+}
+
+/* ------------------ FAB (+ Install banner) ---------- */
+function ensureFab(){
+  if($('#fab')) return;
+  const b=document.createElement('button'); b.id='fab'; b.className='fab'; b.title='Add entry'; b.textContent='+';
+  b.onclick=()=>{ const tab=$$('#tabs .tab').find(t=>t.classList.contains('active')); const id=tab?tab.getAttribute('data-tab'):'log';
+    if(id==='steps-log'){ activateTab('steps-log'); const d=$('#stepsDate'); if(d) d.focus(); }
+    else { activateTab('log'); const d=$('#date'); if(d) d.focus(); }
+    window.scrollTo({top:0,behavior:'smooth'});
+  };
+  document.body.appendChild(b);
+}
+function showInstallBannerOnce(){
+  if(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return;
+  if(localStorage.getItem('gidget.install.dismissed')==='1') return;
+  const wrap=document.createElement('div'); wrap.className='install'; wrap.innerHTML=
+    `<span>Install Gidget on your phone for a full-screen app experience.</span>
+     <button id="ibInstall" class="btn small">How?</button>
+     <button id="ibClose" class="btn small">Close</button>`;
+  document.body.appendChild(wrap);
+  $('#ibInstall').onclick=()=>{ alert('On iPhone (Safari): • Tap Share • Add to Home Screen.\nOn Android (Chrome): • Menu ⋮ • Add to Home screen.'); };
+  $('#ibClose').onclick=()=>{ localStorage.setItem('gidget.install.dismissed','1'); wrap.remove(); };
+}
+
+/* ------------------ Calendar month pickers ---------- */
+function bindMonthPickers(){
+  monthPicker('#calTitle',       '#monthPicker',      ()=>calRef,      (d)=>{calRef=d; renderWakeCalendar();});
+  monthPicker('#stepsCalTitle',  '#stepsMonthPicker', ()=>stepsCalRef, (d)=>{stepsCalRef=d; renderStepsCalendar();});
+
+  // prev/next/today buttons
+  const prev=$('#prevMonth'), next=$('#nextMonth'), today=$('#todayMonth');
+  if(prev)  prev.onclick = ()=>{ calRef.setMonth(calRef.getMonth()-1); renderWakeCalendar(); };
+  if(next)  next.onclick = ()=>{ calRef.setMonth(calRef.getMonth()+1); renderWakeCalendar(); };
+  if(today) today.onclick= ()=>{ calRef=new Date(); renderWakeCalendar(); };
+
+  const sprev=$('#stepsPrevMonth'), snext=$('#stepsNextMonth'), stoday=$('#stepsTodayMonth');
+  if(sprev)  sprev.onclick = ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()-1); renderStepsCalendar(); };
+  if(snext)  snext.onclick = ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar(); };
+  if(stoday) stoday.onclick= ()=>{ stepsCalRef=new Date(); renderStepsCalendar(); };
+}
+
+/* ------------------ Boot ---------------------------- */
+document.addEventListener('DOMContentLoaded', ()=>{
+  initTheme();
+  bindHeaderHide();
+  bindTabs();
+  bindChartControls();
+  bindMonthPickers();
+  initWakeForm();
+  initStepsForm();
+
+  afterWake(loadWake());
+  afterSteps(loadSteps());
+  renderDash();
+
+  ensureSearchInput('#panel-entries',       '#wakeSearch',  ()=>renderWakeTable(loadWake()));
+  ensureSearchInput('#panel-steps-entries', '#stepsSearch', ()=>renderStepsTable(loadSteps()));
+
+  ensureFab();
+  showInstallBannerOnce();
+  updateDot();
+  registerSW();
+
+  const inst=$('#installInfo'); if(inst) inst.onclick=()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.');
 });
