@@ -1,7 +1,7 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v26.9)
+   Gidget · Hamster Tracker — app.js (v27.0)
    - Wake + Revolutions (km/mi)
-   - Calendars with edit/delete popouts
+   - Calendars w/ edit/delete popouts
    - Trend charts + tooltips, grid, axis labels
    - Entries tables + search
    - Dashboard/stats, header hide, themes, accents
@@ -9,6 +9,7 @@
    - Distance card cycles Today/Week/Month/Year (label + value)
    - Explicit Today/Week/Month/Year buttons under distance card
    - Live distance in Rev Log while typing + reflects unit changes
+   - Self-healing distance tile (auto-injects .stat-title/.stat-value)
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -240,36 +241,68 @@ function calcDistance(mode){
   }
   return '—';
 }
+
 function renderDash(){
-  // Wake tile
-  const w = loadWake(), iso=ymd(new Date());
+  // ----- Wake tile -----
+  const w = loadWake(), iso = ymd(new Date());
   const tw = w.find(x=>x.date===iso);
   const wakeVal = tw ? (tw.wake || '—') : '—';
+
   const wakeBox = $('#dashWake')?.closest('.stat') || null;
   if (wakeBox) {
-    const wakeValueEl = wakeBox.querySelector('.stat-value') || $('#dashWake');
-    if (wakeValueEl) wakeValueEl.textContent = wakeVal;
+    let wTitle = wakeBox.querySelector('.stat-title');
+    let wValue = wakeBox.querySelector('.stat-value');
+    if (!wTitle || !wValue) {
+      wakeBox.innerHTML = `
+        <div class="stat-title">Today’s wake</div>
+        <div class="stat-value" id="dashWake"></div>`;
+      wTitle = wakeBox.querySelector('.stat-title');
+      wValue = wakeBox.querySelector('.stat-value');
+    }
+    wValue.textContent = wakeVal;
   } else if ($('#dashWake')) {
     $('#dashWake').textContent = wakeVal;
   }
 
-  // Distance tile
-  const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat') || null;
-  if (!box) return;
+  // ----- Distance tile (self-healing) -----
+  const host =
+    $('#dashStepsBox') ||
+    $('#dashSteps')?.closest('.stat') ||
+    null;
 
-  const labels = ["Today’s distance","This week’s distance","This month’s distance","This year’s distance"];
-  const value  = calcDistance(dashModes[dashModeIndex]);
+  if (!host) {
+    const hardVal = $('#dashSteps');
+    if (hardVal) hardVal.textContent = calcDistance(dashModes[dashModeIndex]);
+    return;
+  }
 
-  const titleEl = box.querySelector('.stat-title') || $('#dashStepsLabel');
-  const valueEl = box.querySelector('.stat-value') || $('#dashSteps');
+  let titleEl = host.querySelector('.stat-title');
+  let valueEl = host.querySelector('.stat-value');
 
-  if (titleEl) titleEl.textContent = labels[dashModeIndex];
-  if (valueEl) valueEl.textContent = value;
+  if (!titleEl || !valueEl) {
+    host.innerHTML = `
+      <div class="stat-title" id="dashStepsLabel">Today’s distance</div>
+      <div class="stat-value" id="dashSteps"></div>
+    `;
+    titleEl = host.querySelector('.stat-title');
+    valueEl = host.querySelector('.stat-value');
+  }
 
-  const scopeEl = $('#distScopeLabel'); // optional mirror elsewhere
-  if (scopeEl) scopeEl.textContent = labels[dashModeIndex];
+  const labels = [
+    "Today’s distance",
+    "This week’s distance",
+    "This month’s distance",
+    "This year’s distance"
+  ];
+  const label = labels[dashModeIndex];
+  const value = calcDistance(dashModes[dashModeIndex]);
 
-  // Hard fallback if valueEl didn't exist or had empty text
+  titleEl.textContent = label;
+  valueEl.textContent  = value;
+
+  const scopeEl = $('#distScopeLabel');
+  if (scopeEl) scopeEl.textContent = label;
+
   const hardVal = document.getElementById('dashSteps');
   if (hardVal && !hardVal.textContent) {
     hardVal.textContent = value;
@@ -277,12 +310,13 @@ function renderDash(){
 
   ensureDistanceControls();
 }
+
 function bindDashToggle(){
   const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
   if (!box) return;
   box.style.cursor = 'pointer';
   box.addEventListener('click', (e)=>{
-    if (closestEl(e, '.dist-controls')) return; // ignore clicks on the buttons bar
+    if (closestEl(e, '.dist-controls')) return; // ignore button bar
     dashModeIndex = (dashModeIndex + 1) % dashModes.length;
     localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
     renderDash();
@@ -461,7 +495,7 @@ function initRevsForm(){
   const revInp = document.getElementById('revsCount');
   if (revInp) {
     revInp.addEventListener('input', updateRevsLiveFromInput);
-    updateRevsLiveFromInput(); // initial render
+    updateRevsLiveFromInput();
   }
 
   ['#revsCount','#revsNotes'].forEach(sel=>{
@@ -615,13 +649,16 @@ function drawWakeChart(){
 
   if(!data.length) return;
 
+  // smoothing + line
   const sm = movingAvg(data.map(d=>d.v), wakeSmooth);
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
   sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
 
+  // x labels
   const step=Math.max(1, Math.floor(data.length/6)); cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); cx.fillText(d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}), x(i), H-padB+6); }
 
+  // points + interactions
   const pts = data.map((p,i)=>({ x:x(i), y:y(p.v), d:p.d, raw:raw[i]}));
   cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
   function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left, y:p.clientY-r.top, cx:p.clientX, cy:p.clientY}; }
@@ -647,6 +684,7 @@ function drawRevsChart(){
   const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.revs*mult})).sort((a,b)=>a.d.localeCompare(b.d));
   const padL=50,padR=10,padT=12,padB=34;
 
+  // axes + y grid
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
   cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText(`Distance (${unit})`, padL, H-10);
   if(!data.length) return;
@@ -660,12 +698,15 @@ function drawRevsChart(){
   cx.textAlign='right'; cx.textBaseline='middle'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<=4;i++){ const t=i/4; const yv=padT+(1-t)*(H-padT-padB); const v=(yMin + t*(yMax-yMin)); cx.fillText(String(v.toFixed(2)), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); }
 
+  // line
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
   sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
 
+  // x labels
   const step=Math.max(1, Math.floor(data.length/6)); cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); cx.fillText(d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}), x(i), H-padB+6); }
 
+  // points + interactions
   const pts = data.map((p,i)=>({ x:x(i), y:y(sm[i]), d:p.d, dist:p.v }));
   cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
   function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left, y:p.clientY-r.top, cx:p.clientX, cy:p.clientY}; }
@@ -704,7 +745,7 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
 (function bindJson(){
   $('#exportJson')?.addEventListener('click', ()=>{
     const blob = new Blob([JSON.stringify({ wake: loadWake(), revs: loadRevs() }, null, 2)], { type:'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v26.json'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v27.json'; a.click();
   });
   $('#importJson')?.addEventListener('change', async (e)=>{
     const f=e.target.files[0]; if(!f) return;
@@ -824,7 +865,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   afterRevs(loadRevs());
   bindDashToggle();
   renderDash();
-  ensureDistanceControls(); // distance mode buttons appear immediately
+  ensureDistanceControls();
 
   ensureSearchInput('#panel-entries',      '#wakeSearch', ()=>renderWakeTable(loadWake()));
   ensureSearchInput('#panel-revs-entries', '#revsSearch', ()=>renderRevsTable(loadRevs()));
