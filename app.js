@@ -1,58 +1,49 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v23)
-   - Adds: tooltips, Enter-to-save, compact notes popout, FAB
-   - Color-coded calendars, search, axis labels
-   - Remembered chart settings, auto JSON backup (manual toggle-ready)
-   - Install banner, improved a11y/ARIA, Esc to close
+   Gidget · Hamster Tracker — app.js (v24)
+   - Replace Steps with Revolutions + distance (km/mi)
+   - Keeps all v23 polish: charts, calendar, search, FAB, SW, JSON/CSV
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
 const $  = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => Array.prototype.slice.call(r.querySelectorAll(s));
-
-function closestEl(el, selector){
-  let n = el && el.nodeType === 1 ? el : (el && el.target) ? el.target : null;
-  for (; n; n = n.parentElement) { if (n.matches && n.matches(selector)) return n; }
-  return null;
-}
+function closestEl(el, selector){ let n = el && el.nodeType === 1 ? el : (el && el.target) ? el.target : null; for (; n; n = n.parentElement) { if (n.matches && n.matches(selector)) return n; } return null; }
 function ymd(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function toMin(t){ if(!t) return null; const p=t.split(':'); return (+p[0])*60 + (+p[1]); }
 function fromMin(m){ return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
-function setupCanvas(cv, cssH=260){
-  cv.style.width='100%'; cv.style.height=(innerWidth<=700?340:cssH)+'px';
-  const dpr=window.devicePixelRatio||1, rect=cv.getBoundingClientRect();
-  cv.width=Math.max(1,Math.round(rect.width*dpr)); cv.height=Math.max(1,Math.round(parseFloat(cv.style.height)*dpr));
-  return { W: rect.width, H: parseFloat(cv.style.height), dpr };
-}
+function setupCanvas(cv, cssH=260){ cv.style.width='100%'; cv.style.height=(innerWidth<=700?340:cssH)+'px'; const dpr=window.devicePixelRatio||1, rect=cv.getBoundingClientRect(); cv.width=Math.max(1,Math.round(rect.width*dpr)); cv.height=Math.max(1,Math.round(parseFloat(cv.style.height)*dpr)); return { W: rect.width, H: parseFloat(cv.style.height), dpr }; }
+function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
 
 /* Toast */
 function toast(msg, actionsHtml){
   let t = document.getElementById('toast');
-  if(!t){
-    t = document.createElement('div');
-    t.id = 'toast';
-    t.className = 'toast';
-    document.body.appendChild(t);
-  }
+  if(!t){ t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
   t.innerHTML = `<span>${msg}</span>` + (actionsHtml||'');
-  t.hidden = false;
-  t.classList.add('show');
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(()=>{ t.classList.remove('show'); }, 5000);
+  t.hidden = false; t.classList.add('show');
+  clearTimeout(toast._timer); toast._timer = setTimeout(()=>{ t.classList.remove('show'); }, 5000);
 }
 
-/* ---------------------- theme ---------------------- */
+/* ---------------------- theme & units ---------------------- */
 const MODE_KEY='gidget.theme.mode', ACC_KEY='gidget.theme.accent';
+const UNIT_KEY='gidget.units'; // 'km' | 'mi'
 const ACCENTS={blue:'#0EA5E9',mint:'#6EE7B7',violet:'#8b5cf6',amber:'#f59e0b',rose:'#f43f5e'};
 function applyTheme(mode,accent){ const root=document.documentElement; if(mode==='light'||mode==='dark') root.setAttribute('data-mode',mode); else root.removeAttribute('data-mode'); root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.blue); }
 function initTheme(){
   const m=localStorage.getItem(MODE_KEY)||'system', a=localStorage.getItem(ACC_KEY)||'blue'; applyTheme(m,a);
-  const lightBtn=$('#themeLight'), sysBtn=$('#themeSystem'), darkBtn=$('#themeDark');
-  if(lightBtn) lightBtn.onclick=()=>{ localStorage.setItem(MODE_KEY,'light');  applyTheme('light',  localStorage.getItem(ACC_KEY)||'blue'); };
-  if(sysBtn)   sysBtn.onclick  =()=>{ localStorage.setItem(MODE_KEY,'system'); applyTheme('system', localStorage.getItem(ACC_KEY)||'blue'); };
-  if(darkBtn)  darkBtn.onclick =()=>{ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',   localStorage.getItem(ACC_KEY)||'blue'); };
+  $('#themeLight').onclick=()=>{ localStorage.setItem(MODE_KEY,'light');  applyTheme('light',  localStorage.getItem(ACC_KEY)||'blue'); };
+  $('#themeSystem').onclick=()=>{ localStorage.setItem(MODE_KEY,'system'); applyTheme('system', localStorage.getItem(ACC_KEY)||'blue'); };
+  $('#themeDark').onclick=()=>{ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',   localStorage.getItem(ACC_KEY)||'blue'); };
   $$('.swatch').forEach(s=> s.onclick=()=>{ const acc=s.getAttribute('data-accent'); localStorage.setItem(ACC_KEY,acc); applyTheme(localStorage.getItem(MODE_KEY)||'system',acc); });
 }
+function initUnits(){
+  const u = localStorage.getItem(UNIT_KEY) || 'km';
+  const km=$('#unitKm'), mi=$('#unitMi');
+  function setU(val){ localStorage.setItem(UNIT_KEY,val); km && km.classList.toggle('solid', val==='km'); mi && mi.classList.toggle('solid', val==='mi'); afterRevs(loadRevs()); }
+  if(km) km.onclick=()=>setU('km');
+  if(mi) mi.onclick=()=>setU('mi');
+  setU(u);
+}
+const UNIT_MULT = { km: 0.00091, mi: 0.000565 }; // 1 rev = 0.91 m ≈ 0.00091 km ≈ 0.000565 mi
 
 /* --------------- header hide/shrink ---------------- */
 function bindHeaderHide(){
@@ -79,7 +70,7 @@ function bindTabs(){
   tabs.addEventListener('click',(e)=>{
     const tab=closestEl(e,'.tab'); if(!tab) return; const id=tab.getAttribute('data-tab'); activateTab(id);
     if(id==='trends') drawWakeChart(); if(id==='calendar') renderWakeCalendar(); if(id==='entries') renderWakeTable(loadWake());
-    if(id==='steps-trends') drawStepsChart(); if(id==='steps-calendar') renderStepsCalendar(); if(id==='steps-entries') renderStepsTable(loadSteps());
+    if(id==='revs-trends') drawRevsChart(); if(id==='revs-calendar') renderRevsCalendar(); if(id==='revs-entries') renderRevsTable(loadRevs());
   });
 }
 
@@ -93,35 +84,28 @@ function monthPicker(titleSel,inputSel,getRef,setRef){
 }
 
 /* ---------------------- storage -------------------- */
-const WAKE_KEY='gidget_site_v1', STEPS_KEY='gidget_steps_v1';
+const WAKE_KEY='gidget_site_v1';
+const REVS_KEY='gidget_revs_v1';
 const WRANGE_KEY='gidget.wake.range', WSMOOTH_KEY='gidget.wake.smooth';
-const SRANGE_KEY='gidget.steps.range', SSMOOTH_KEY='gidget.steps.smooth';
+const RRANGE_KEY='gidget.revs.range', RSMOOTH_KEY='gidget.revs.smooth';
 
 function loadWake(){ try{ return JSON.parse(localStorage.getItem(WAKE_KEY))||[]; }catch{ return []; } }
 function saveWake(rows){ localStorage.setItem(WAKE_KEY, JSON.stringify(rows)); }
-function loadSteps(){ try{ return JSON.parse(localStorage.getItem(STEPS_KEY))||[]; }catch{ return []; } }
-function saveSteps(rows){ localStorage.setItem(STEPS_KEY, JSON.stringify(rows)); }
+function loadRevs(){ try{ return JSON.parse(localStorage.getItem(REVS_KEY))||[]; }catch{ return []; } }
+function saveRevs(rows){ localStorage.setItem(REVS_KEY, JSON.stringify(rows)); }
 
 /* ------------------ search helpers ------------------ */
 function filterRowsWake(rows, q){
-  if(!q) return rows;
-  q = q.toLowerCase();
-  return rows.filter(r =>
-    (r.date||'').toLowerCase().includes(q) ||
-    (r.wake||'').toLowerCase().includes(q) ||
-    (r.mood||'').toLowerCase().includes(q) ||
-    String(r.weight||'').toLowerCase().includes(q) ||
-    String(r.notes||'').toLowerCase().includes(q)
-  );
+  if(!q) return rows; q=q.toLowerCase();
+  return rows.filter(r => (r.date||'').toLowerCase().includes(q) || (r.wake||'').toLowerCase().includes(q) ||
+                          (r.mood||'').toLowerCase().includes(q) || String(r.weight||'').toLowerCase().includes(q) ||
+                          String(r.notes||'').toLowerCase().includes(q));
 }
-function filterRowsSteps(rows, q){
-  if(!q) return rows;
-  q = q.toLowerCase();
-  return rows.filter(r =>
-    (r.date||'').toLowerCase().includes(q) ||
-    String(r.steps||'').toLowerCase().includes(q) ||
-    String(r.notes||'').toLowerCase().includes(q)
-  );
+function filterRowsRevs(rows, q){
+  if(!q) return rows; q=q.toLowerCase();
+  return rows.filter(r => (r.date||'').toLowerCase().includes(q) ||
+                          String(r.revs||'').toLowerCase().includes(q) ||
+                          String(r.notes||'').toLowerCase().includes(q));
 }
 
 /* ------------------ modals ------------------ */
@@ -132,23 +116,18 @@ function openModal(title, html){
   m.hidden = false;
 }
 $('#modalClose').onclick = ()=>$('#modal').hidden = true;
-document.addEventListener('keydown', e=>{
-  if(e.key==='Escape') $('#modal').hidden = true;
-});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') $('#modal').hidden = true; });
 
 /* ------------------ dashboard ------------------ */
 function renderDash(){
-  const w = loadWake(), s = loadSteps(), iso = ymd(new Date());
-  const tw = w.find(r=>r.date===iso), ts = s.find(r=>r.date===iso);
-  const w7 = (()=>{const d=new Date(); d.setDate(d.getDate()-6); const cut=ymd(d); const xs=w.filter(r=>r.date>=cut&&r.wake).map(r=>toMin(r.wake)); return xs.length? fromMin(Math.round(xs.reduce((a,b)=>a+b,0)/xs.length)) : '—';})();
-  const s7 = (()=>{const d=new Date(); d.setDate(d.getDate()-6); const cut=ymd(d); const xs=s.filter(r=>r.date>=cut&&r.steps).map(r=>+r.steps); return xs.length? Math.round(xs.reduce((a,b)=>a+b,0)/xs.length) : '—';})();
-  const wTxt = tw? (tw.wake||'—') : '—';
-  const sTxt = ts? (ts.steps||'—') : '—';
-  const dw = (w7!=='—' && tw&&tw.wake)? ` (avg ${w7})` : '';
-  const ds = (s7!=='—' && ts&&ts.steps)? ` (avg ${s7})` : '';
-  const dwEl=$('#dashWake'), dsEl=$('#dashSteps');
-  if(dwEl) dwEl.textContent = wTxt + (dw||'');
-  if(dsEl) dsEl.textContent = sTxt + (ds||'');
+  const w = loadWake(), r = loadRevs(), iso = ymd(new Date());
+  const tw = w.find(x=>x.date===iso), tr = r.find(x=>x.date===iso);
+  const unit=localStorage.getItem(UNIT_KEY)||'km';
+  const mult=UNIT_MULT[unit];
+  const r7 = (()=>{const d=new Date(); d.setDate(d.getDate()-6); const cut=ymd(d); const xs=r.filter(x=>x.date>=cut&&x.revs).map(x=>+x.revs*mult); return xs.length? (unit==='km'? (xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(2): (xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(2)) : '—';})();
+  const dwEl=$('#dashWake'), dsEl=$('#dashSteps'); // reuse existing IDs: dashSteps shows distance
+  if(dwEl) dwEl.textContent = tw? (tw.wake||'—') : '—';
+  if(dsEl) dsEl.textContent = tr? ( (+tr.revs*mult).toFixed(2)+' '+unit ) : '—' + (r7==='—'?'':` (avg ${r7} ${unit})`);
 }
 
 /* =================== Wake module =================== */
@@ -157,20 +136,14 @@ let calRef=new Date();
 function initWakeForm(){
   const d = $('#date'); if(d) d.value = ymd(new Date());
   const nowBtn = $('#nowBtn'); if(nowBtn) nowBtn.onclick = ()=> $('#wake').value = new Date().toTimeString().slice(0,5);
-
-  // Enter to save
   ['#wake','#weight','#mood','#notes'].forEach(sel=>{
-    const el = $(sel); if(el) el.addEventListener('keydown', e=>{
-      if(e.key==='Enter'){ e.preventDefault(); const sv=$('#save'); if(sv) sv.click(); }
-    });
+    const el=$(sel); if(el) el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); const sv=$('#save'); if(sv) sv.click(); }});
   });
-
-  const save=$('#save'); if(save) save.onclick = ()=>{
+  const save=$('#save'); if(save) save.onclick=()=>{
     if(!$('#date').value) return toast('Date is required');
     const row={date:$('#date').value,wake:$('#wake').value,weight:$('#weight').value,mood:$('#mood').value,notes:$('#notes').value};
     const rows=loadWake().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
-    saveWake(rows); afterWake(rows);
-    toast('Wake saved ✓');
+    saveWake(rows); afterWake(rows); toast('Wake saved ✓');
   };
   const clear=$('#clearForm'); if(clear) clear.onclick=()=>{$('#wake').value=$('#weight').value=$('#mood').value=$('#notes').value='';};
 }
@@ -187,11 +160,9 @@ function renderWakeStats(rows){
   const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake));
   const avg7=$('#avg7'); if(avg7) avg7.textContent=`7-day avg: ${ts.length?fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)):'—'}`;
 }
-
 function renderWakeTable(rows){
   const tb = $('#table tbody'); if(!tb) return; tb.innerHTML='';
-  // ensure search input exists
-  ensureSearchInput('#panel-entries', '#wakeSearch', term=>renderWakeTable(loadWake()));
+  ensureSearchInput('#panel-entries', '#wakeSearch', ()=>renderWakeTable(loadWake()));
   const q = ($('#wakeSearch') && $('#wakeSearch').value) || '';
   const data = filterRowsWake(rows, q);
   data.sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
@@ -208,11 +179,9 @@ function renderWakeTable(rows){
     const all=loadWake(), deleted=all.find(r=>r.date===d), left=all.filter(r=>r.date!==d);
     saveWake(left); afterWake(left);
     toast(`Deleted wake entry ${d}`, `<button class="btn small" id="undoWake">Undo</button>`);
-    const u=$('#undoWake');
-    if(u) u.onclick=()=>{ const rows=loadWake().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); };
+    const u=$('#undoWake'); if(u) u.onclick=()=>{ const rows=loadWake().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); };
   };
 }
-
 function renderWakeCalendar(){
   const rows=loadWake(); const box=$('#calendar'); if(!box) return; box.innerHTML='';
   const title=$('#calTitle'); if(title) title.textContent=calRef.toLocaleString(undefined,{month:'long',year:'numeric'});
@@ -221,7 +190,7 @@ function renderWakeCalendar(){
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
     const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
-    if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-early'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-late'); }
+    if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-low'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.wake?rec.wake:'—'}</div>`;
     cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Wake</b>: ${rec.wake||'—'}</div><div><b>Weight</b>: ${rec.weight||'—'} g</div><div><b>Mood</b>: ${rec.mood||'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div>`; } else { html=`<div>No wake entry for ${iso}.</div>`; } openModal('Wake • '+iso, html); };
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
@@ -229,191 +198,145 @@ function renderWakeCalendar(){
   }
 }
 
-/* =================== Steps module =================== */
-let stepsCalRef=new Date();
+/* =================== Revolutions module =================== */
+let revsCalRef=new Date();
+let revsRange = +(localStorage.getItem(RRANGE_KEY)||7);
+let revsSmooth= +(localStorage.getItem(RSMOOTH_KEY)||1);
 
-function initStepsForm(){
-  const d=$('#stepsDate'); if(d) d.value=ymd(new Date());
-  const todayBtn=$('#stepsTodayBtn'); if(todayBtn) todayBtn.onclick=()=>{ $('#stepsDate').value=ymd(new Date()); };
-  ['#stepsCount','#stepsNotes'].forEach(sel=>{
-    const el=$(sel); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const b=$('#stepsSave'); if(b) b.click(); }});
+function initRevsForm(){
+  const d=$('#revsDate'); if(d) d.value=ymd(new Date());
+  const todayBtn=$('#revsTodayBtn'); if(todayBtn) todayBtn.onclick=()=>{ $('#revsDate').value=ymd(new Date()); };
+  ['#revsCount','#revsNotes'].forEach(sel=>{
+    const el=$(sel); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const b=$('#revsSave'); if(b) b.click(); }});
   });
-  const save=$('#stepsSave'); if(save) save.onclick=()=>{
-    if(!$('#stepsDate').value) return toast('Date is required');
-    const row={date:$('#stepsDate').value,steps:$('#stepsCount').value,notes:$('#stepsNotes').value};
-    const rows=loadSteps().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
-    saveSteps(rows); afterSteps(rows); toast('Steps saved ✓');
+  const save=$('#revsSave'); if(save) save.onclick=()=>{
+    if(!$('#revsDate').value) return toast('Date is required');
+    const row={date:$('#revsDate').value,revs:$('#revsCount').value,notes:$('#revsNotes').value};
+    const rows=loadRevs().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
+    saveRevs(rows); afterRevs(rows); toast('Revolutions saved ✓');
   };
-  const clr=$('#stepsClear'); if(clr) clr.onclick=()=>{ $('#stepsCount').value=''; $('#stepsNotes').value=''; };
+  const clr=$('#revsClear'); if(clr) clr.onclick=()=>{ $('#revsCount').value=''; $('#revsNotes').value=''; };
 }
-
-function renderStepsToday(rows){
-  const t=rows.find(r=>r.date===ymd(new Date())); const box=$('#stepsTodayBox'); if(!box) return;
-  box.textContent=t?`This morning ${t.date}: ${t.steps||'—'} steps`:'No steps entry for today yet.';
+function renderRevsToday(rows){
+  const t=rows.find(r=>r.date===ymd(new Date())); const box=$('#revsTodayBox'); if(!box) return;
+  const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
+  box.textContent=t?`This morning ${t.date}: ${t.revs||'—'} revs • ${(t.revs? (+t.revs*mult).toFixed(2):'—')} ${unit}`:'No revolutions entry for today yet.';
 }
-function renderStepsStats(rows){
+function renderRevsStats(rows){
   let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)}
-  const streak=$('#stepsStreak'); if(streak) streak.textContent=`Streak: ${s} ${s===1?'day':'days'}`;
+  const streak=$('#revsStreak'); if(streak) streak.textContent=`Streak: ${s} ${s===1?'day':'days'}`;
   const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut);
-  const vals=rows.filter(r=>r.date>=iso&&r.steps).map(r=>+r.steps);
-  const avg7=$('#stepsAvg7'); if(avg7) avg7.textContent=`7-day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'}`;
+  const vals=rows.filter(r=>r.date>=iso&&r.revs).map(r=>+r.revs);
+  const avg7=$('#revsAvg7'); if(avg7) avg7.textContent=`7-day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'} revs`;
 }
-
-function renderStepsTable(rows){
-  const tb=$('#stepsTable tbody'); if(!tb) return; tb.innerHTML='';
-  ensureSearchInput('#panel-steps-entries', '#stepsSearch', term=>renderStepsTable(loadSteps()));
-  const q=($('#stepsSearch')&&$('#stepsSearch').value)||'';
-  const data=filterRowsSteps(rows, q);
+function renderRevsTable(rows){
+  const tb=$('#revsTable tbody'); if(!tb) return; tb.innerHTML='';
+  ensureSearchInput('#panel-revs-entries', '#revsSearch', ()=>renderRevsTable(loadRevs()));
+  const q=($('#revsSearch')&&$('#revsSearch').value)||'';
+  const data=filterRowsRevs(rows, q);
+  const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
   data.sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
+    const dist = r.revs ? (+r.revs*mult).toFixed(2)+' '+unit : '—';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${r.date}</td><td>${r.steps||'—'}</td>
+    tr.innerHTML=`<td>${r.date}</td><td>${r.revs||'—'}</td><td>${dist}</td>
       <td class="notesCell"><button class="noteIcon">ℹ</button></td>
-      <td><button class="btn small" data-sdel="${r.date}">Delete</button></td>`;
+      <td><button class="btn small" data-rdel="${r.date}">Delete</button></td>`;
     tr.querySelector('.noteIcon').onclick=()=>openModal('Notes', r.notes ? String(r.notes).replace(/</g,'&lt;'):'—');
     tb.appendChild(tr);
   });
   tb.onclick=(e)=>{
-    const d=e.target && e.target.getAttribute ? e.target.getAttribute('data-sdel') : null;
-    if(!d) return;
-    const all=loadSteps(), deleted=all.find(r=>r.date===d), left=all.filter(r=>r.date!==d);
-    saveSteps(left); afterSteps(left);
-    toast(`Deleted steps ${d}`, `<button class="btn small" id="undoSteps">Undo</button>`);
-    const u=$('#undoSteps');
-    if(u) u.onclick=()=>{ const rows=loadSteps().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveSteps(rows); afterSteps(rows); };
+    const d=e.target && e.target.getAttribute ? e.target.getAttribute('data-rdel') : null; if(!d) return;
+    const all=loadRevs(), deleted=all.find(r=>r.date===d), left=all.filter(r=>r.date!==d);
+    saveRevs(left); afterRevs(left);
+    toast(`Deleted revolutions ${d}`, `<button class="btn small" id="undoRevs">Undo</button>`);
+    const u=$('#undoRevs'); if(u) u.onclick=()=>{ const rows=loadRevs().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveRevs(rows); afterRevs(rows); };
   };
 }
-
-function renderStepsCalendar(){
-  const rows=loadSteps(); const box=$('#stepsCalendar'); if(!box) return; box.innerHTML='';
-  const title=$('#stepsCalTitle'); if(title) title.textContent=stepsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
-  const y=stepsCalRef.getFullYear(), m=stepsCalRef.getMonth(); const first=new Date(y,m,1);
+function renderRevsCalendar(){
+  const rows=loadRevs(); const box=$('#revsCalendar'); if(!box) return; box.innerHTML='';
+  const title=$('#revsCalTitle'); if(title) title.textContent=revsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
+  const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
+  const y=revsCalRef.getFullYear(), m=revsCalRef.getMonth(); const first=new Date(y,m,1);
   const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
     const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
-    if(rec&&rec.steps){ const v=+rec.steps; if(v<5000)cell.classList.add('cell-low'); else if(v<12000)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
-    cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.steps?rec.steps:'—'}</div>`;
-    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Steps</b>: ${rec.steps||'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div>`; } else { html=`<div>No steps entry for ${iso}.</div>`; } openModal('Steps • '+iso, html); };
+    let dist=0; if(rec&&rec.revs) dist=+rec.revs*mult;
+    if(dist>0){ if(dist<0.5)cell.classList.add('cell-low'); else if(dist<2)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
+    cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.revs? (dist.toFixed(2)+' '+unit):'—'}</div>`;
+    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Revs</b>: ${rec.revs||'—'}</div><div><b>Distance</b>: ${rec.revs? dist.toFixed(2)+' '+unit:'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div>`; } else { html=`<div>No revolutions entry for ${iso}.</div>`; } openModal('Revolutions • '+iso, html); };
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
     box.appendChild(cell);
   }
 }
 
-/* ------------------ charts ------------------ */
-let wakeRange = +(localStorage.getItem(WRANGE_KEY)||7);
-let wakeSmooth= +(localStorage.getItem(WSMOOTH_KEY)||1);
-let stepsRange= +(localStorage.getItem(SRANGE_KEY)||7);
-let stepsSmooth=+(localStorage.getItem(SSMOOTH_KEY)||1);
-
-function bindChartControls(){
-  const smooth=$('#smooth'); if(smooth){ smooth.value=String(wakeSmooth); smooth.addEventListener('change',()=>{ wakeSmooth=+smooth.value; localStorage.setItem(WSMOOTH_KEY,String(wakeSmooth)); drawWakeChart(); }); }
-  $$('.rangeBtn').forEach(b=> b.addEventListener('click',()=>{ wakeRange=+b.getAttribute('data-range'); localStorage.setItem(WRANGE_KEY,String(wakeRange)); drawWakeChart(); }));
-
-  const sSmooth=$('#stepsSmooth'); if(sSmooth){ sSmooth.value=String(stepsSmooth); sSmooth.addEventListener('change',()=>{ stepsSmooth=+sSmooth.value; localStorage.setItem(SSMOOTH_KEY,String(stepsSmooth)); drawStepsChart(); }); }
-  $$('.stepsRangeBtn').forEach(b=> b.addEventListener('click',()=>{ stepsRange=+b.getAttribute('data-range'); localStorage.setItem(SRANGE_KEY,String(stepsRange)); drawStepsChart(); }));
-}
-
-function movingAvg(arr, n){
-  if(n<=1) return arr.slice();
-  const out=[], len=arr.length; let s=0;
-  for(let i=0;i<len;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= i>=n-1 ? s/Math.min(n,i+1) : arr[i]; }
-  return out;
-}
+/* ------------------ charts (revs distance) ------------------ */
+function movingAvg(arr, n){ if(n<=1) return arr.slice(); const out=[], len=arr.length; let s=0; for(let i=0;i<len;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= i>=n-1 ? s/Math.min(n,i+1) : arr[i]; } return out; }
 
 function drawWakeChart(){
-  const rows=loadWake().filter(r=>r.wake);
-  const cv=$('#chart'); if(!cv) return;
+  const rows=loadWake().filter(r=>r.wake), cv=$('#chart'); if(!cv) return;
   const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
-  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-wakeRange+1);
+  const end=new Date(); const start=new Date(end); const wakeRange=+(localStorage.getItem(WRANGE_KEY)||7); start.setDate(end.getDate()-wakeRange+1);
   const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
   const padL=50,padR=10,padT=12,padB=34;
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
   cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText("Time (HH:MM)", padL, H-10);
-
-  const min=900,max=1800;
-  const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  const y=m => padT + (1-((m-min)/(max-min)))*(H-padT-padB);
-
-  // grid labels
-  cx.textAlign='right'; cx.textBaseline='middle';
-  [18*60,21*60,0,3*60].forEach(t=>{ const yv=y((t+1440)%1440<900 ? (t+1440) : t); cx.fillText(fromMin((t+1440)%1440), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.stroke(); });
-
+  const min=900,max=1800; const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR); const y=m => padT + (1-((m-min)/(max-min)))*(H-padT-padB);
+  cx.textAlign='right'; cx.textBaseline='middle'; [18*60,21*60,0,3*60].forEach(t=>{ const yv=y((t+1440)%1440<900 ? (t+1440) : t); cx.fillText(fromMin((t+1440)%1440), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.stroke(); });
   if(!data.length) return;
-
+  const smooth=+(localStorage.getItem(WSMOOTH_KEY)||1);
   const vals = data.map(d=>{let v=d.m; if(v<900) v+=1440; return v;});
-  const sm = movingAvg(vals, wakeSmooth);
-
-  // line
+  const sm = movingAvg(vals, smooth);
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
-  sm.forEach((v,i)=>{ const yv=padT+(1-((v-900)/(1800-900)))*(H-padT-padB); const xv=x(i); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); });
-  cx.stroke();
-
-  // points & interaction
-  const pts=[]; cx.fillStyle=getCSS('--acc');
-  data.forEach((p,i)=>{ const X=x(i), Y=y(p.m<900?p.m+1440:p.m); pts.push({X,Y,date:p.d}); cx.beginPath(); cx.arc(X,Y,2.5,0,Math.PI*2); cx.fill(); });
-
-  function getPos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left,y:p.clientY-r.top}; }
-  function handle(e){ if(!pts.length) return; const pos=getPos(e); let best=null,d2=1e12; for(const p of pts){ const dx=pos.x-p.X, dy=pos.y-p.Y, dd=dx*dx+dy*dy; if(dd<d2){ d2=dd; best=p; } } if(best && d2<=18*18){ const r=loadWake().find(z=>z.date===best.date)||{}; openModal(`Wake • ${best.date}`, `<div><b>Wake</b>: ${r.wake||'—'}</div><div><b>Weight</b>: ${r.weight||'—'} g</div><div><b>Mood</b>: ${r.mood||'—'}</div><div class="mt"><b>Notes</b>: ${r.notes? String(r.notes).replace(/</g,'&lt;'):'—'}</div>`); } }
-  cv.onclick=handle; cv.addEventListener('touchstart', handle, {passive:true});
-
+  sm.forEach((v,i)=>{ const yv=padT+(1-((v-900)/(1800-900)))*(H-padT-padB); const xv=x(i); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
   // x labels
-  const ticks=[]; const labelDay=s=>{const d=new Date(s+'T00:00:00'); return d.toLocaleDateString(undefined,{day:'2-digit',month:'short'});};
-  const step=Math.max(1, Math.floor(data.length/6));
-  for(let i=0;i<data.length;i+=step){ ticks.push({i,text:labelDay(data[i].d)}); }
-  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
-  ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
+  const ticks=[]; const step=Math.max(1, Math.floor(data.length/6));
+  for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); ticks.push({i,text:d.toLocaleDateString(undefined,{day:'2-digit',month:'short'})}); }
+  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted'); ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
 }
 
-function drawStepsChart(){
-  const rows=loadSteps().filter(r=>r.steps);
-  const cv=$('#stepsChart'); if(!cv) return;
+function drawRevsChart(){
+  const rows=loadRevs().filter(r=>r.revs), cv=$('#revsChart'); if(!cv) return;
   const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
-  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-stepsRange+1);
-  const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.steps})).sort((a,b)=>a.d.localeCompare(b.d));
+  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-revsRange+1);
+  const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
+  const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.revs*mult})).sort((a,b)=>a.d.localeCompare(b.d));
   const padL=50,padR=10,padT=12,padB=34;
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
-  cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText("Steps", padL, H-10);
+  cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText(`Distance (${unit})`, padL, H-10);
 
   if(!data.length) return;
-
-  const vals=data.map(d=>d.v); const yMin=Math.max(0, Math.floor(Math.min.apply(null, vals)*0.95)); const yMax=Math.max(1, Math.ceil(Math.max.apply(null, vals)*1.05));
-  const sm = movingAvg(vals, stepsSmooth);
-
+  const vals=data.map(d=>d.v); const yMin=Math.max(0, Math.floor((Math.min.apply(null, vals))*100)/100); const yMax=Math.max(0.01, Math.ceil((Math.max.apply(null, vals))*100)/100);
+  const smooth=revsSmooth; const sm=movingAvg(vals, smooth);
   const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
-  const y=v => padT + (1-((v-yMin)/(yMax-yMin)))*(H-padT-padB);
-
-  // horizontal grid labels
+  const y=v => padT + (1-((v-yMin)/(yMax-yMin||1)))*(H-padT-padB);
+  // grid
   cx.textAlign='right'; cx.textBaseline='middle'; cx.fillStyle=getCSS('--muted');
-  for(let i=0;i<=4;i++){ const t=i/4; const yv=padT+(1-t)*(H-padT-padB); const v=Math.round(yMin + t*(yMax-yMin)); cx.fillText(String(v), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); }
-
+  for(let i=0;i<=4;i++){ const t=i/4; const yv=padT+(1-t)*(H-padT-padB); const v=(yMin + t*(yMax-yMin)); cx.fillText(String(v.toFixed(2)), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); }
   // line
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
-  sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); });
-  cx.stroke();
+  sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
 
   // x labels
   const ticks=[]; const step=Math.max(1, Math.floor(data.length/6));
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); ticks.push({i,text:d.toLocaleDateString(undefined,{day:'2-digit',month:'short'})}); }
-  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
-  ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
+  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted'); ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
 }
-
-function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
 
 /* ------------------ after save ------------------ */
 function afterWake(rows){ renderWakeToday(rows); renderWakeStats(rows); renderWakeTable(rows); renderWakeCalendar(); drawWakeChart(); renderDash(); }
-function afterSteps(rows){ renderStepsToday(rows); renderStepsStats(rows); renderStepsTable(rows); renderStepsCalendar(); drawStepsChart(); renderDash(); }
+function afterRevs(rows){ renderRevsToday(rows); renderRevsStats(rows); renderRevsTable(rows); renderRevsCalendar(); drawRevsChart(); renderDash(); }
 
 /* ------------------ search inputs (auto-add) ------- */
 function ensureSearchInput(panelSel, inputIdSel, onInput){
   const panel=$(panelSel); if(!panel) return;
   let inp=$(inputIdSel);
   if(!inp){
-    const h3=panel.querySelector('h3') || panel.querySelector('table') || panel.firstChild;
+    const h = panel.querySelector('h3') || panel.querySelector('table') || panel.firstChild;
     const wrap=document.createElement('div'); wrap.className='row mt'; wrap.style.justifyContent='flex-end';
     inp=document.createElement('input'); inp.className='search'; inp.id=inputIdSel.replace('#',''); inp.placeholder='Search…';
     wrap.appendChild(inp);
-    if(h3 && h3.parentNode) h3.parentNode.insertBefore(wrap, h3.nextSibling);
+    if(h && h.parentNode) h.parentNode.insertBefore(wrap, h.nextSibling);
   }
   if(inp && onInput){ inp.oninput=()=> onInput(inp.value); }
 }
@@ -422,35 +345,36 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
 (function bindJson(){
   const exportJson = $('#exportJson');
   if (exportJson) exportJson.onclick = () => {
-    const blob = new Blob([JSON.stringify({ wake: loadWake(), steps: loadSteps() }, null, 2)], { type:'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v23.json'; a.click();
+    const blob = new Blob([JSON.stringify({ wake: loadWake(), revs: loadRevs() }, null, 2)], { type:'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v24.json'; a.click();
   };
   const importJson = $('#importJson');
   if (importJson) importJson.addEventListener('change', async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try{
       const data = JSON.parse(await f.text()) || {};
+      // Backward-compat: if file contains "steps", treat as revs
+      const R = Array.isArray(data.revs) ? data.revs : (Array.isArray(data.steps) ? data.steps.map(x=>({date:x.date,revs:x.steps,notes:x.notes})) : []);
       const W = Array.isArray(data.wake)? data.wake : [];
-      const S = Array.isArray(data.steps)? data.steps : [];
+      const rMap = new Map(loadRevs().map(r=>[r.date,r])); R.forEach(r=>rMap.set(r.date, r));
       const wMap = new Map(loadWake().map(r=>[r.date,r])); W.forEach(r=>wMap.set(r.date, r));
-      const sMap = new Map(loadSteps().map(r=>[r.date,r])); S.forEach(r=>sMap.set(r.date, r));
+      const rRows = Array.from(rMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
       const wRows = Array.from(wMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
-      const sRows = Array.from(sMap.values()).sort((a,b)=>a.date.localeCompare(b.date));
-      saveWake(wRows); saveSteps(sRows); afterWake(wRows); afterSteps(sRows);
+      saveRevs(rRows); saveWake(wRows); afterRevs(rRows); afterWake(wRows);
       toast('Imported JSON and merged');
     }catch{ toast('Import failed: bad JSON'); }
   });
 })();
 
-/* ------------------ CSV Export/Import (keep) -------- */
+/* ------------------ CSV Export/Import -------------- */
 (function bindCsv(){
   const exportBtn=$('#exportCsv');
   if(exportBtn) exportBtn.onclick=()=>{ 
-    const wake=loadWake(), steps=loadSteps();
-    const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Steps\n';
+    const wake=loadWake(), revs=loadRevs();
+    const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Revolutions\n';
     const lines=[
       ...wake.map(r=>['wake',r.date,r.wake||'',r.weight||'',r.mood||'',JSON.stringify(r.notes||'').slice(1,-1),''].join(',')),
-      ...steps.map(s=>['steps',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.steps||''].join(','))
+      ...revs.map(s=>['revs',s.date,'','','',JSON.stringify(s.notes||'').slice(1,-1),s.revs||''].join(','))
     ];
     const blob=new Blob([header+lines.join('\n')],{type:'text/csv'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
@@ -460,14 +384,14 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
     const f=e.target.files[0]; if(!f) return;
     f.text().then((text)=>{
       const lines=text.trim().split(/\r?\n/); const header=lines.shift().split(',');
-      const idxType=header.indexOf('Type'); const W=[],S=[];
+      const idxType=header.indexOf('Type'); const W=[],R=[];
       lines.forEach(ln=>{
         const p=ln.split(',');
         const type=(idxType>=0?p[idxType]:'wake');
-        if(type==='steps'){ S.push({date:p[1],steps:p[6]||'',notes:p[5]||''}); }
+        if(type==='revs' || type==='steps'){ R.push({date:p[1],revs:(type==='steps'?p[6]:p[6])||'',notes:p[5]||''}); }
         else { W.push({date:p[1],wake:p[2]||'',weight:p[3]||'',mood:p[4]||'',notes:p[5]||''}); }
       });
-      saveWake(W); saveSteps(S); afterWake(W); afterSteps(S);
+      saveWake(W); saveRevs(R); afterWake(W); afterRevs(R);
       toast('Imported CSV');
     });
   });
@@ -478,7 +402,7 @@ function updateDot(){ const d=document.querySelector('.status-dot'); if(!d) retu
 window.addEventListener('online', updateDot);
 window.addEventListener('offline', updateDot);
 
-/* SW register (respect ?nosw=1 like v22) */
+/* SW register (reuse v23 SW) */
 function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const qs=new URL(window.location.href).searchParams;
@@ -496,8 +420,8 @@ function registerSW(){
 function ensureFab(){
   if($('#fab')) return;
   const b=document.createElement('button'); b.id='fab'; b.className='fab'; b.title='Add entry'; b.textContent='+';
-  b.onclick=()=>{ const tab=$$('#tabs .tab').find(t=>t.classList.contains('active')); const id=tab?tab.getAttribute('data-tab'):'log';
-    if(id==='steps-log'){ activateTab('steps-log'); const d=$('#stepsDate'); if(d) d.focus(); }
+  b.onclick=()=>{ const tab=$$('#tabs .tab').find(t=>t.classList.contains('active')); const id=tab?tab.getAttribute('data-tab'):'revs-log';
+    if(id==='revs-log'){ activateTab('revs-log'); const d=$('#revsDate'); if(d) d.focus(); }
     else { activateTab('log'); const d=$('#date'); if(d) d.focus(); }
     window.scrollTo({top:0,behavior:'smooth'});
   };
@@ -515,44 +439,44 @@ function showInstallBannerOnce(){
   $('#ibClose').onclick=()=>{ localStorage.setItem('gidget.install.dismissed','1'); wrap.remove(); };
 }
 
-/* ------------------ Calendar month pickers ---------- */
+/* ------------------ Month pickers / nav ------------- */
 function bindMonthPickers(){
   monthPicker('#calTitle',       '#monthPicker',      ()=>calRef,      (d)=>{calRef=d; renderWakeCalendar();});
-  monthPicker('#stepsCalTitle',  '#stepsMonthPicker', ()=>stepsCalRef, (d)=>{stepsCalRef=d; renderStepsCalendar();});
+  monthPicker('#revsCalTitle',   '#revsMonthPicker',  ()=>revsCalRef,  (d)=>{revsCalRef=d; renderRevsCalendar();});
 
-  // prev/next/today buttons
+  // Wake nav
   const prev=$('#prevMonth'), next=$('#nextMonth'), today=$('#todayMonth');
   if(prev)  prev.onclick = ()=>{ calRef.setMonth(calRef.getMonth()-1); renderWakeCalendar(); };
   if(next)  next.onclick = ()=>{ calRef.setMonth(calRef.getMonth()+1); renderWakeCalendar(); };
   if(today) today.onclick= ()=>{ calRef=new Date(); renderWakeCalendar(); };
 
-  const sprev=$('#stepsPrevMonth'), snext=$('#stepsNextMonth'), stoday=$('#stepsTodayMonth');
-  if(sprev)  sprev.onclick = ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()-1); renderStepsCalendar(); };
-  if(snext)  snext.onclick = ()=>{ stepsCalRef.setMonth(stepsCalRef.getMonth()+1); renderStepsCalendar(); };
-  if(stoday) stoday.onclick= ()=>{ stepsCalRef=new Date(); renderStepsCalendar(); };
+  // Revs nav
+  const rprev=$('#revsPrevMonth'), rnext=$('#revsNextMonth'), rtoday=$('#revsTodayMonth');
+  if(rprev)  rprev.onclick = ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()-1); renderRevsCalendar(); };
+  if(rnext)  rnext.onclick = ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()+1); renderRevsCalendar(); };
+  if(rtoday) rtoday.onclick= ()=>{ revsCalRef=new Date(); renderRevsCalendar(); };
+}
+
+/* ------------------ Chart controls ------------------ */
+function bindRevsChartControls(){
+  const rs=$('#revsSmooth'); if(rs){ rs.value=String(revsSmooth); rs.addEventListener('change',()=>{ revsSmooth=+rs.value; localStorage.setItem(RSMOOTH_KEY,String(revsSmooth)); drawRevsChart(); }); }
+  $$('.revsRangeBtn').forEach(b=> b.addEventListener('click',()=>{ revsRange=+b.getAttribute('data-range'); localStorage.setItem(RRANGE_KEY,String(revsRange)); drawRevsChart(); }));
 }
 
 /* ------------------ Boot ---------------------------- */
 document.addEventListener('DOMContentLoaded', ()=>{
-  initTheme();
-  bindHeaderHide();
-  bindTabs();
-  bindChartControls();
-  bindMonthPickers();
-  initWakeForm();
-  initStepsForm();
+  initTheme(); initUnits();
+  bindHeaderHide(); bindTabs(); bindMonthPickers(); bindRevsChartControls();
+  initWakeForm(); initRevsForm();
 
   afterWake(loadWake());
-  afterSteps(loadSteps());
+  afterRevs(loadRevs());
   renderDash();
 
   ensureSearchInput('#panel-entries',       '#wakeSearch',  ()=>renderWakeTable(loadWake()));
-  ensureSearchInput('#panel-steps-entries', '#stepsSearch', ()=>renderStepsTable(loadSteps()));
+  ensureSearchInput('#panel-revs-entries',  '#revsSearch',  ()=>renderRevsTable(loadRevs()));
 
-  ensureFab();
-  showInstallBannerOnce();
-  updateDot();
-  registerSW();
+  ensureFab(); showInstallBannerOnce(); updateDot(); registerSW();
 
   const inst=$('#installInfo'); if(inst) inst.onclick=()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.');
 });

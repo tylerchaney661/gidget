@@ -6,7 +6,7 @@
   <title>Gidget · Hamster Tracker</title>
   <meta name="theme-color" content="#0B0F14"/>
   <link rel="manifest" href="manifest.webmanifest"/>
-  <link rel="stylesheet" href="style.css?v=22"/>
+  <link rel="stylesheet" href="style.css?v=24"/>
 </head>
 <body>
   <!-- Header (shrinks/hides on scroll) -->
@@ -16,7 +16,7 @@
         <div class="badge" aria-hidden="true">G</div>
         <div>
           <div class="title">Gidget · Hamster Tracker</div>
-          <div class="muted tiny">Wake‑up · Steps · Trends · Calendar · Offline</div>
+          <div class="muted tiny">Wake-up · Revolutions · Trends · Calendar · Offline</div>
         </div>
       </div>
 
@@ -35,6 +35,12 @@
           <button class="swatch" data-accent="violet" title="Violet"></button>
           <button class="swatch" data-accent="amber"  title="Amber"></button>
           <button class="swatch" data-accent="rose"   title="Rose"></button>
+        </div>
+
+        <!-- Units -->
+        <div class="group" role="group" aria-label="Units">
+          <button id="unitKm" class="btn small">km</button>
+          <button id="unitMi" class="btn small">mi</button>
         </div>
 
         <button id="exportCsv" class="btn">Export CSV</button>
@@ -57,19 +63,19 @@
 
   <main>
     <!-- Tabs -->
-    <div class="tabs" id="tabs">
-      <button class="tab active" data-tab="log">Log</button>
-      <button class="tab" data-tab="trends">Trends</button>
-      <button class="tab" data-tab="calendar">Calendar</button>
-      <button class="tab" data-tab="entries">Entries</button>
-      <button class="tab" data-tab="steps-log">Steps Log</button>
-      <button class="tab" data-tab="steps-trends">Steps Trends</button>
-      <button class="tab" data-tab="steps-calendar">Steps Calendar</button>
-      <button class="tab" data-tab="steps-entries">Steps Entries</button>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Views">
+      <button class="tab active" data-tab="log" role="tab" aria-selected="true">Log</button>
+      <button class="tab" data-tab="trends" role="tab" aria-selected="false">Trends</button>
+      <button class="tab" data-tab="calendar" role="tab" aria-selected="false">Calendar</button>
+      <button class="tab" data-tab="entries" role="tab" aria-selected="false">Entries</button>
+      <button class="tab" data-tab="revs-log" role="tab" aria-selected="false">Revs Log</button>
+      <button class="tab" data-tab="revs-trends" role="tab" aria-selected="false">Revs Trends</button>
+      <button class="tab" data-tab="revs-calendar" role="tab" aria-selected="false">Revs Calendar</button>
+      <button class="tab" data-tab="revs-entries" role="tab" aria-selected="false">Revs Entries</button>
     </div>
 
     <!-- Wake Log -->
-    <section class="grid tabpanel" id="panel-log">
+    <section class="grid tabpanel" id="panel-log" role="tabpanel">
       <section class="card">
         <h3>Quick Log (Wake)</h3>
         <div class="row">
@@ -78,7 +84,7 @@
             <input id="date" type="date"/>
           </div>
           <div class="col">
-            <label for="wake">Wake‑Up Time</label>
+            <label for="wake">Wake-Up Time</label>
             <div class="row">
               <input id="wake" type="time" style="flex:1"/>
               <button id="nowBtn" class="btn">Now</button>
@@ -112,7 +118,7 @@
         <div id="todayBox" class="muted mt">—</div>
         <div class="row mt">
           <span id="streak" class="pill">Streak: 0</span>
-          <span id="avg7" class="pill">7‑day avg: —</span>
+          <span id="avg7" class="pill">7-day avg: —</span>
         </div>
       </section>
 
@@ -136,7 +142,7 @@
     </section>
 
     <!-- Wake Trends -->
-    <section class="card tabpanel" id="panel-trends" hidden>
+    <section class="card tabpanel" id="panel-trends" role="tabpanel" hidden>
       <div class="row between">
         <div class="row">
           <button class="btn small rangeBtn" data-range="7">Week</button>
@@ -147,17 +153,16 @@
           <label for="smooth" class="muted m0">Smoothing</label>
           <select id="smooth">
             <option value="1">None</option>
-            <option value="3">3‑day</option>
-            <option value="7">7‑day</option>
+            <option value="3">3-day</option>
+            <option value="7">7-day</option>
           </select>
         </div>
       </div>
       <canvas id="chart"></canvas>
-      <div id="chartMeta" class="muted">—</div>
     </section>
 
     <!-- Wake Calendar -->
-    <section class="card tabpanel" id="panel-calendar" hidden>
+    <section class="card tabpanel" id="panel-calendar" role="tabpanel" hidden>
       <div class="row between">
         <div class="row">
           <button id="prevMonth" class="btn small">‹</button>
@@ -174,98 +179,98 @@
     </section>
 
     <!-- Wake Entries -->
-    <section class="card tabpanel" id="panel-entries" hidden>
+    <section class="card tabpanel" id="panel-entries" role="tabpanel" hidden>
       <h3>Entries</h3>
       <table id="table">
-        <thead><tr><th>Date</th><th>Wake‑Up</th><th>Weight</th><th>Mood</th><th>Food</th><th>Sand</th><th>Notes</th><th></th></tr></thead>
+        <thead><tr><th>Date</th><th>Wake-Up</th><th>Weight</th><th>Mood</th><th>Notes</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
 
-    <!-- Steps Log -->
-    <section class="grid tabpanel" id="panel-steps-log" hidden>
+    <!-- Revs Log -->
+    <section class="grid tabpanel" id="panel-revs-log" role="tabpanel" hidden>
       <section class="card">
-        <h3>Steps Log (Morning)</h3>
+        <h3>Revolutions Log (Morning)</h3>
         <div class="row">
           <div class="col">
-            <label for="stepsDate">Date</label>
+            <label for="revsDate">Date</label>
             <div class="row">
-              <input id="stepsDate" type="date" style="flex:1"/>
-              <button id="stepsTodayBtn" class="btn">Today</button>
+              <input id="revsDate" type="date" style="flex:1"/>
+              <button id="revsTodayBtn" class="btn">Today</button>
             </div>
           </div>
           <div class="col">
-            <label for="stepsCount">Steps</label>
-            <input id="stepsCount" type="number" min="0" step="1" placeholder="e.g. 12000"/>
+            <label for="revsCount">Revolutions</label>
+            <input id="revsCount" type="number" min="0" step="1" placeholder="e.g. 15000"/>
           </div>
         </div>
-        <label for="stepsNotes">Notes</label>
-        <textarea id="stepsNotes" placeholder="Morning notes…"></textarea>
+        <label for="revsNotes">Notes</label>
+        <textarea id="revsNotes" placeholder="Morning notes…"></textarea>
         <div class="row mt">
-          <button id="stepsSave" class="btn solid">Save Steps</button>
-          <button id="stepsClear" class="btn">Clear</button>
+          <button id="revsSave" class="btn solid">Save Revolutions</button>
+          <button id="revsClear" class="btn">Clear</button>
         </div>
-        <div id="stepsTodayBox" class="muted mt">—</div>
+        <div id="revsTodayBox" class="muted mt">—</div>
         <div class="row mt">
-          <span id="stepsStreak" class="pill">Streak: 0</span>
-          <span id="stepsAvg7" class="pill">7‑day avg: —</span>
+          <span id="revsStreak" class="pill">Streak: 0</span>
+          <span id="revsAvg7" class="pill">7-day avg: —</span>
         </div>
       </section>
     </section>
 
-    <!-- Steps Trends -->
-    <section class="card tabpanel" id="panel-steps-trends" hidden>
+    <!-- Revs Trends -->
+    <section class="card tabpanel" id="panel-revs-trends" role="tabpanel" hidden>
       <div class="row between">
         <div class="row">
-          <button class="btn small stepsRangeBtn" data-range="7">Week</button>
-          <button class="btn small stepsRangeBtn" data-range="30">Month</button>
-          <button class="btn small stepsRangeBtn" data-range="365">Year</button>
+          <button class="btn small revsRangeBtn" data-range="7">Week</button>
+          <button class="btn small revsRangeBtn" data-range="30">Month</button>
+          <button class="btn small revsRangeBtn" data-range="365">Year</button>
         </div>
         <div class="row">
-          <label for="stepsSmooth" class="muted m0">Smoothing</label>
-          <select id="stepsSmooth">
+          <label for="revsSmooth" class="muted m0">Smoothing</label>
+          <select id="revsSmooth">
             <option value="1">None</option>
-            <option value="3">3‑day</option>
-            <option value="7">7‑day</option>
+            <option value="3">3-day</option>
+            <option value="7">7-day</option>
           </select>
         </div>
       </div>
-      <canvas id="stepsChart"></canvas>
-      <div id="stepsChartMeta" class="muted">—</div>
+      <canvas id="revsChart"></canvas>
+      <div id="revsChartMeta" class="muted">—</div>
     </section>
 
-    <!-- Steps Calendar -->
-    <section class="card tabpanel" id="panel-steps-calendar" hidden>
+    <!-- Revs Calendar -->
+    <section class="card tabpanel" id="panel-revs-calendar" role="tabpanel" hidden>
       <div class="row between">
         <div class="row">
-          <button id="stepsPrevMonth" class="btn small">‹</button>
-          <button id="stepsTodayMonth" class="btn small">Today</button>
-          <button id="stepsNextMonth" class="btn small">›</button>
+          <button id="revsPrevMonth" class="btn small">‹</button>
+          <button id="revsTodayMonth" class="btn small">Today</button>
+          <button id="revsNextMonth" class="btn small">›</button>
         </div>
         <div>
-          <div id="stepsCalTitle" class="title clickable" tabindex="0" role="button" aria-label="Choose month">—</div>
+          <div id="revsCalTitle" class="title clickable" tabindex="0" role="button" aria-label="Choose month">—</div>
           <div class="muted tiny">Tap the month to choose another</div>
         </div>
       </div>
       <div class="cal-head mt"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
-      <div id="stepsCalendar" class="calendar"></div>
+      <div id="revsCalendar" class="calendar"></div>
     </section>
 
-    <!-- Steps Entries -->
-    <section class="card tabpanel" id="panel-steps-entries" hidden>
-      <h3>Steps Entries</h3>
-      <table id="stepsTable">
-        <thead><tr><th>Date</th><th>Steps</th><th>Notes</th><th></th></tr></thead>
+    <!-- Revs Entries -->
+    <section class="card tabpanel" id="panel-revs-entries" role="tabpanel" hidden>
+      <h3>Revolutions Entries</h3>
+      <table id="revsTable">
+        <thead><tr><th>Date</th><th>Revolutions</th><th>Distance</th><th>Notes</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
 
-    <div class="muted tiny center mt">Version v22 • SW v22 • add “?nosw=1” to bypass</div>
+    <div class="muted tiny center mt">Version v24 • SW v23 • Tip: add “?nosw=1” to bypass cache once</div>
   </main>
 
   <!-- Hidden month inputs for pickers -->
   <input type="month" id="monthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none"/>
-  <input type="month" id="stepsMonthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none"/>
+  <input type="month" id="revsMonthPicker" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none"/>
 
   <!-- Modal -->
   <div id="modal" class="modal" hidden>
@@ -278,10 +283,10 @@
     </div>
   </div>
 
-  <!-- Toast (created dynamically if missing, but aria-live here helps SRs) -->
+  <!-- Toast -->
   <div id="toast" class="toast" aria-live="polite" hidden></div>
 
   <!-- Load JS -->
-  <script defer src="app.js?v=22"></script>
+  <script defer src="app.js?v=24"></script>
 </body>
 </html>
