@@ -1,8 +1,9 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v26)
+   Gidget · Hamster Tracker — app.js (v26.2)
    - Revolutions (km/mi) + Wake
    - Trend charts with grid, axis labels, and tooltips (hover/tap)
-   - Keeps v24 features: calendars w/ edit/delete, FAB, SW, JSON/CSV
+   - Calendars with edit/delete popouts (fixed calendar clicks)
+   - Keeps PWA, FAB, JSON/CSV, themes
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -256,7 +257,7 @@ function renderWakeCalendar(){
     cell.setAttribute('data-date', iso);
     cell.setAttribute('role', 'button');
     cell.style.cursor = 'pointer';
-    cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
+    cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openWakeDayModal(iso); }});
     box.appendChild(cell);
   }
 }
@@ -386,25 +387,13 @@ function renderRevsCalendar(){
     cell.setAttribute('data-date', iso);
     cell.setAttribute('role', 'button');
     cell.style.cursor = 'pointer';
-    cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
+    cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openRevsDayModal(iso); }});
     box.appendChild(cell);
 function bindCalendarClicks(){
   const cal = $('#calendar');
-  if(cal){
-    cal.addEventListener('click', (e)=>{
-      const cell = closestEl(e, '.cell'); if(!cell) return;
-      const iso = cell.getAttribute('data-date'); if(!iso) return;
-      openWakeDayModal(iso);
-    });
-  }
+  if(cal){ cal.addEventListener('click', (e)=>{ const cell = closestEl(e, '.cell'); if(!cell) return; const iso = cell.getAttribute('data-date'); if(!iso) return; openWakeDayModal(iso); }); }
   const rcal = $('#revsCalendar');
-  if(rcal){
-    rcal.addEventListener('click', (e)=>{
-      const cell = closestEl(e, '.cell'); if(!cell) return;
-      const iso = cell.getAttribute('data-date'); if(!iso) return;
-      openRevsDayModal(iso);
-    });
-  }
+  if(rcal){ rcal.addEventListener('click', (e)=>{ const cell = closestEl(e, '.cell'); if(!cell) return; const iso = cell.getAttribute('data-date'); if(!iso) return; openRevsDayModal(iso); }); }
 }
   }
 }
@@ -675,7 +664,7 @@ function ensureFab(){
   document.body.appendChild(b);
 }
 function showInstallBannerOnce(){
-  if(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return;
+  if(window.matchMedia and window.matchMedia('(display-mode: standalone)').matches) return;
   if(localStorage.getItem('gidget.install.dismissed')==='1') return;
   const wrap=document.createElement('div'); wrap.className='install'; wrap.innerHTML=
     `<span>Install Gidget on your phone for a full-screen app experience.</span>
@@ -719,7 +708,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   const inst=$('#installInfo'); if(inst) inst.onclick=()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.');
 
-  // Ensure charts render at least once
   drawWakeChart();
   drawRevsChart();
 });
