@@ -34,6 +34,8 @@ function setupCanvas(cv, cssH=260){
 function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
 function movingAvg(arr, n){ if(n<=1) return arr.slice(); const out=[]; let s=0; for(let i=0;i<arr.length;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= s/Math.min(n,i+1); } return out; }
 
+function debounce(fn, wait=150){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+
 /* Tooltip for charts */
 function ensureTip(){
   let tip = $('#chartTip');
@@ -148,14 +150,39 @@ function activateTab(name){
     t.setAttribute('aria-selected', is ? 'true' : 'false');
   });
   $$('.tabpanel').forEach(p=>p.hidden=(p.id!==('panel-'+name)));
+  refreshPanel(name);
 }
+
+function refreshPanel(name){
+  if(name==='trends'){ drawWakeChart(); }
+  if(name==='calendar'){ renderWakeCalendar(); }
+  if(name==='entries'){ renderWakeTable(loadWake()); }
+
+  if(name==='revs-trends'){ drawRevsChart(); }
+  if(name==='revs-calendar'){ renderRevsCalendar(); }
+  if(name==='revs-entries'){ renderRevsTable(loadRevs()); }
+}
+
 function bindTabs(){
-  const tabs=$('#tabs'); if(!tabs) return;
-  tabs.addEventListener('click',(e)=>{
-    const tab=closestEl(e,'.tab'); if(!tab) return; const id=tab.getAttribute('data-tab'); activateTab(id);
-    if(id==='trends') drawWakeChart(); if(id==='calendar') renderWakeCalendar(); if(id==='entries') renderWakeTable(loadWake());
-    if(id==='revs-trends') drawRevsChart(); if(id==='revs-calendar') renderRevsCalendar(); if(id==='revs-entries') renderRevsTable(loadRevs());
+  document.addEventListener('click', (e)=>{
+    const tab = closestEl(e, '[data-tab]');
+    if(!tab) return;
+    const id = tab.getAttribute('data-tab');
+    if(!id) return;
+    // Prevent default for anchors/buttons with href="#"
+    if(tab.tagName==='A') e.preventDefault();
+    activateTab(id);
   });
+}
+function bindResizeRedraw(){
+  const doRedraw = debounce(()=>{
+    // Only redraw visible charts to avoid jank
+    const wakePanel = $('#panel-trends');
+    const revsPanel = $('#panel-revs-trends');
+    if(wakePanel && !wakePanel.hidden) drawWakeChart();
+    if(revsPanel && !revsPanel.hidden) drawRevsChart();
+  }, 200);
+  window.addEventListener('resize', doRedraw, { passive: true });
 }
 
 /* ------------------ month pickers ------------------ */
@@ -861,6 +888,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   bindHeaderHide(); bindTabs(); bindMonthPickers(); bindCalendarClicks(); bindWakeChartControls(); bindRevsChartControls();
   initWakeForm(); initRevsForm();
 
+  bindResizeRedraw();
+
   afterWake(loadWake());
   afterRevs(loadRevs());
   bindDashToggle();
@@ -873,6 +902,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
   ensureFab(); showInstallBannerOnce(); updateDot(); registerSW();
 
   $('#installInfo')?.addEventListener('click', ()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.'));
+
+  // Refresh the active tab’s panel on load
+  const initialActive = $$('#tabs .tab').find(t=>t.classList.contains('active'));
+  if(initialActive){
+    const id = initialActive.getAttribute('data-tab');
+    if(id) refreshPanel(id);
+  }
 
   drawWakeChart(); drawRevsChart();
 });
