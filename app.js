@@ -1,7 +1,8 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v24)
-   - Replace Steps with Revolutions + distance (km/mi)
-   - Keeps all v23 polish: charts, calendar, search, FAB, SW, JSON/CSV
+   Gidget · Hamster Tracker — app.js (v26)
+   - Revolutions (km/mi) + Wake
+   - Trend charts with grid, axis labels, and tooltips (hover/tap)
+   - Keeps v24 features: calendars w/ edit/delete, FAB, SW, JSON/CSV
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -11,8 +12,56 @@ function closestEl(el, selector){ let n = el && el.nodeType === 1 ? el : (el && 
 function ymd(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function toMin(t){ if(!t) return null; const p=t.split(':'); return (+p[0])*60 + (+p[1]); }
 function fromMin(m){ return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
-function setupCanvas(cv, cssH=260){ cv.style.width='100%'; cv.style.height=(innerWidth<=700?340:cssH)+'px'; const dpr=window.devicePixelRatio||1, rect=cv.getBoundingClientRect(); cv.width=Math.max(1,Math.round(rect.width*dpr)); cv.height=Math.max(1,Math.round(parseFloat(cv.style.height)*dpr)); return { W: rect.width, H: parseFloat(cv.style.height), dpr }; }
+function setupCanvas(cv, cssH=260){
+  cv.style.width='100%'; cv.style.height=(innerWidth<=700?320:cssH)+'px';
+  const dpr=window.devicePixelRatio||1, rect=cv.getBoundingClientRect();
+  cv.width=Math.max(1,Math.round(rect.width*dpr)); cv.height=Math.max(1,Math.round(parseFloat(cv.style.height)*dpr));
+  return { W: rect.width, H: parseFloat(cv.style.height), dpr };
+}
 function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
+function movingAvg(arr, n){ if(n<=1) return arr.slice(); const out=[], len=arr.length; let s=0; for(let i=0;i<len;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= s/Math.min(n,i+1); } return out; }
+
+/* Tiny tooltip element (shared by charts) */
+function ensureTip(){
+  let tip = $('#chartTip');
+  if(!tip){
+    tip = document.createElement('div');
+    tip.id = 'chartTip';
+    tip.style.position='fixed';
+    tip.style.zIndex='9999';
+    tip.style.pointerEvents='none';
+    tip.style.padding='8px 10px';
+    tip.style.border='1px solid var(--line)';
+    tip.style.borderRadius='10px';
+    tip.style.background='var(--card)';
+    tip.style.boxShadow='var(--shadow)';
+    tip.style.color='var(--fg)';
+    tip.style.fontSize='12px';
+    tip.style.opacity='0';
+    tip.style.transition='opacity .12s ease, transform .12s ease';
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+function showTip(x, y, html){
+  const tip = ensureTip();
+  tip.innerHTML = html;
+  const pad=12;
+  let tx=x+pad, ty=y+pad;
+  // keep in viewport
+  const rect = tip.getBoundingClientRect();
+  if(tx+rect.width>innerWidth-8) tx = x - rect.width - pad;
+  if(ty+rect.height>innerHeight-8) ty = y - rect.height - pad;
+  tip.style.left = tx+'px';
+  tip.style.top  = ty+'px';
+  tip.style.opacity='1';
+  tip.style.transform='translateY(0)';
+}
+function hideTip(){
+  const tip = ensureTip();
+  tip.style.opacity='0';
+  tip.style.transform='translateY(4px)';
+}
 
 /* Toast */
 function toast(msg, actionsHtml){
@@ -30,17 +79,17 @@ const ACCENTS={blue:'#0EA5E9',mint:'#6EE7B7',violet:'#8b5cf6',amber:'#f59e0b',ro
 function applyTheme(mode,accent){ const root=document.documentElement; if(mode==='light'||mode==='dark') root.setAttribute('data-mode',mode); else root.removeAttribute('data-mode'); root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.blue); }
 function initTheme(){
   const m=localStorage.getItem(MODE_KEY)||'system', a=localStorage.getItem(ACC_KEY)||'blue'; applyTheme(m,a);
-  $('#themeLight').onclick=()=>{ localStorage.setItem(MODE_KEY,'light');  applyTheme('light',  localStorage.getItem(ACC_KEY)||'blue'); };
-  $('#themeSystem').onclick=()=>{ localStorage.setItem(MODE_KEY,'system'); applyTheme('system', localStorage.getItem(ACC_KEY)||'blue'); };
-  $('#themeDark').onclick=()=>{ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',   localStorage.getItem(ACC_KEY)||'blue'); };
+  $('#themeLight')?.addEventListener('click',()=>{ localStorage.setItem(MODE_KEY,'light');  applyTheme('light',  localStorage.getItem(ACC_KEY)||'blue'); });
+  $('#themeSystem')?.addEventListener('click',()=>{ localStorage.setItem(MODE_KEY,'system'); applyTheme('system', localStorage.getItem(ACC_KEY)||'blue'); });
+  $('#themeDark')?.addEventListener('click',()=>{ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',   localStorage.getItem(ACC_KEY)||'blue'); });
   $$('.swatch').forEach(s=> s.onclick=()=>{ const acc=s.getAttribute('data-accent'); localStorage.setItem(ACC_KEY,acc); applyTheme(localStorage.getItem(MODE_KEY)||'system',acc); });
 }
 function initUnits(){
   const u = localStorage.getItem(UNIT_KEY) || 'km';
   const km=$('#unitKm'), mi=$('#unitMi');
-  function setU(val){ localStorage.setItem(UNIT_KEY,val); km && km.classList.toggle('solid', val==='km'); mi && mi.classList.toggle('solid', val==='mi'); afterRevs(loadRevs()); }
-  if(km) km.onclick=()=>setU('km');
-  if(mi) mi.onclick=()=>setU('mi');
+  function setU(val){ localStorage.setItem(UNIT_KEY,val); km && km.classList.toggle('solid', val==='km'); mi && mi.classList.toggle('solid', val==='mi'); afterRevs(loadRevs()); drawRevsChart(); }
+  km && (km.onclick=()=>setU('km'));
+  mi && (mi.onclick=()=>setU('mi'));
   setU(u);
 }
 const UNIT_MULT = { km: 0.00091, mi: 0.000565 }; // 1 rev = 0.91 m ≈ 0.00091 km ≈ 0.000565 mi
@@ -84,8 +133,8 @@ function monthPicker(titleSel,inputSel,getRef,setRef){
 }
 
 /* ---------------------- storage -------------------- */
-const WAKE_KEY='gidget_site_v1';
-const REVS_KEY='gidget_revs_v1';
+const WAKE_KEY='gidget.wake';
+const REVS_KEY='gidget.revs';
 const WRANGE_KEY='gidget.wake.range', WSMOOTH_KEY='gidget.wake.smooth';
 const RRANGE_KEY='gidget.revs.range', RSMOOTH_KEY='gidget.revs.smooth';
 
@@ -124,10 +173,9 @@ function renderDash(){
   const tw = w.find(x=>x.date===iso), tr = r.find(x=>x.date===iso);
   const unit=localStorage.getItem(UNIT_KEY)||'km';
   const mult=UNIT_MULT[unit];
-  const r7 = (()=>{const d=new Date(); d.setDate(d.getDate()-6); const cut=ymd(d); const xs=r.filter(x=>x.date>=cut&&x.revs).map(x=>+x.revs*mult); return xs.length? (unit==='km'? (xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(2): (xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(2)) : '—';})();
-  const dwEl=$('#dashWake'), dsEl=$('#dashSteps'); // reuse existing IDs: dashSteps shows distance
+  const dwEl=$('#dashWake'), dsEl=$('#dashSteps');
   if(dwEl) dwEl.textContent = tw? (tw.wake||'—') : '—';
-  if(dsEl) dsEl.textContent = tr? ( (+tr.revs*mult).toFixed(2)+' '+unit ) : '—' + (r7==='—'?'':` (avg ${r7} ${unit})`);
+  if(dsEl) dsEl.textContent = tr? ( (+tr.revs*mult).toFixed(2)+' '+unit ) : '—';
 }
 
 /* =================== Wake module =================== */
@@ -197,7 +245,6 @@ function renderWakeCalendar(){
     box.appendChild(cell);
   }
 }
-
 function openWakeDayModal(iso){
   const rows = loadWake();
   const rec  = rows.find(r=>r.date===iso);
@@ -230,12 +277,9 @@ function openWakeDayModal(iso){
         <button id="we_save" type="submit" class="btn solid">${rec? 'Save' : 'Add'}</button>
       </div>
     </form>`;
-
   openModal('Wake • '+iso, formHtml);
-
   const form = document.getElementById('wakeEditForm');
   if(!form) return;
-
   form.addEventListener('submit', (e)=>{
     e.preventDefault();
     const updated = {
@@ -248,7 +292,6 @@ function openWakeDayModal(iso){
     const next = rows.filter(r=>r.date!==iso).concat([updated]).sort((a,b)=>a.date.localeCompare(b.date));
     saveWake(next); afterWake(next); document.getElementById('modal').hidden = true; toast('Saved ✓');
   });
-
   const delBtn = document.getElementById('we_delete');
   if(delBtn){
     delBtn.addEventListener('click', ()=>{
@@ -266,7 +309,7 @@ let revsSmooth= +(localStorage.getItem(RSMOOTH_KEY)||1);
 
 function initRevsForm(){
   const d=$('#revsDate'); if(d) d.value=ymd(new Date());
-  const todayBtn=$('#revsTodayBtn'); if(todayBtn) todayBtn.onclick=()=>{ $('#revsDate').value=ymd(new Date()); };
+  $('#revsTodayBtn')?.addEventListener('click', ()=>{ $('#revsDate').value=ymd(new Date()); });
   ['#revsCount','#revsNotes'].forEach(sel=>{
     const el=$(sel); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const b=$('#revsSave'); if(b) b.click(); }});
   });
@@ -330,7 +373,6 @@ function renderRevsCalendar(){
     box.appendChild(cell);
   }
 }
-
 function openRevsDayModal(iso){
   const rows = loadRevs();
   const rec  = rows.find(r=>r.date===iso);
@@ -368,7 +410,7 @@ function openRevsDayModal(iso){
 
   const revInput = document.getElementById('re_revs');
   const distInput= document.getElementById('re_dist');
-  if(revInput && distInput){ revInput.addEventListener('input', ()=>{ const v = +revInput.value||0; distInput.value = (v*mult).toFixed(2)+' '+unit; }); }
+  if(revInput && distInput){ revInput.addEventListener('input', ()=>{ const v = +revInput.value||0; const unit=localStorage.getItem(UNIT_KEY)||'km'; const mult=UNIT_MULT[unit]; distInput.value = (v*mult).toFixed(2)+' '+unit; }); }
 
   const form = document.getElementById('revsEditForm');
   if(!form) return;
@@ -390,57 +432,110 @@ function openRevsDayModal(iso){
   }
 }
 
-/* ------------------ charts (revs distance) ------------------ */
-function movingAvg(arr, n){ if(n<=1) return arr.slice(); const out=[], len=arr.length; let s=0; for(let i=0;i<len;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= i>=n-1 ? s/Math.min(n,i+1) : arr[i]; } return out; }
+/* ------------------ charts with tooltips ------------------ */
+let wakeRange = +(localStorage.getItem(WRANGE_KEY)||7);
+let wakeSmooth= +(localStorage.getItem(WSMOOTH_KEY)||1);
+function bindWakeChartControls(){
+  const smooth=$('#smooth'); if(smooth){ smooth.value=String(wakeSmooth); smooth.addEventListener('change',()=>{ wakeSmooth=+smooth.value; localStorage.setItem(WSMOOTH_KEY,String(wakeSmooth)); drawWakeChart(); }); }
+  $$('.rangeBtn').forEach(b=> b.addEventListener('click',()=>{ wakeRange=+b.getAttribute('data-range'); localStorage.setItem(WRANGE_KEY,String(wakeRange)); drawWakeChart(); }));
+}
+let revsRangeMem = +(localStorage.getItem(RRANGE_KEY)||7);
+let revsSmoothMem= +(localStorage.getItem(RSMOOTH_KEY)||1);
+function bindRevsChartControls(){
+  const rs=$('#revsSmooth'); if(rs){ rs.value=String(revsSmoothMem); rs.addEventListener('change',()=>{ revsSmoothMem=+rs.value; localStorage.setItem(RSMOOTH_KEY,String(revsSmoothMem)); drawRevsChart(); }); }
+  $$('.revsRangeBtn').forEach(b=> b.addEventListener('click',()=>{ revsRangeMem=+b.getAttribute('data-range'); localStorage.setItem(RRANGE_KEY,String(revsRangeMem)); drawRevsChart(); }));
+}
 
 function drawWakeChart(){
-  const rows=loadWake().filter(r=>r.wake), cv=$('#chart'); if(!cv) return;
+  const rows=loadWake().filter(r=>r.wake);
+  const cv=$('#chart'); if(!cv) return;
   const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
-  const end=new Date(); const start=new Date(end); const wakeRange=+(localStorage.getItem(WRANGE_KEY)||7); start.setDate(end.getDate()-wakeRange+1);
-  const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
+  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-wakeRange+1);
+  const raw=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
+  const data = raw.map(x=>({d:x.d,v:x.m<900?x.m+1440:x.m})); // unwrap around midnight
   const padL=50,padR=10,padT=12,padB=34;
+  // axes
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
   cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText("Time (HH:MM)", padL, H-10);
-  const min=900,max=1800; const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR); const y=m => padT + (1-((m-min)/(max-min)))*(H-padT-padB);
-  cx.textAlign='right'; cx.textBaseline='middle'; [18*60,21*60,0,3*60].forEach(t=>{ const yv=y((t+1440)%1440<900 ? (t+1440) : t); cx.fillText(fromMin((t+1440)%1440), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.stroke(); });
+  // y grid (18:00, 21:00, 00:00, 03:00)
+  const min=900, max=1800; // 15:00–30:00 (wrapped)
+  const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
+  const y=val => padT + (1-((val-900)/(1800-900)))*(H-padT-padB);
+  cx.textAlign='right'; cx.textBaseline='middle';
+  [18*60,21*60,0,3*60].forEach(t=>{ const base=t<900?t+1440:t; const yv=y(base); cx.fillText(fromMin(t%1440), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); });
   if(!data.length) return;
-  const smooth=+(localStorage.getItem(WSMOOTH_KEY)||1);
-  const vals = data.map(d=>{let v=d.m; if(v<900) v+=1440; return v;});
-  const sm = movingAvg(vals, smooth);
+
+  // smoothing
+  const sm = movingAvg(data.map(d=>d.v), wakeSmooth);
+
+  // line
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
-  sm.forEach((v,i)=>{ const yv=padT+(1-((v-900)/(1800-900)))*(H-padT-padB); const xv=x(i); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
+  sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); });
+  cx.stroke();
+
   // x labels
   const ticks=[]; const step=Math.max(1, Math.floor(data.length/6));
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); ticks.push({i,text:d.toLocaleDateString(undefined,{day:'2-digit',month:'short'})}); }
-  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted'); ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
+  cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
+  ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
+
+  // points (for hit tests)
+  const pts = data.map((p,i)=>({ x:x(i), y:y(p.v), d:p.d, raw:raw[i]}));
+  cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
+
+  // interactions
+  function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX - r.left, y:p.clientY - r.top}; }
+  function nearest(pt){ let best=null, bd=1e9; for(const p of pts){ const dx=pt.x-p.x, dy=pt.y-p.y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=p; } } return (bd<=18*18)?best:null; }
+  function tipHTML(p){ const time = fromMin(p.raw.m%1440); return `<b>${p.d}</b><br/>Wake: ${time}`; }
+  function onMove(e){ const p=pos(e), n=nearest(p); if(n){ showTip((e.touches?e.touches[0].clientX:e.clientX),(e.touches?e.touches[0].clientY:e.clientY), tipHTML(n)); } else { hideTip(); } }
+  cv.onmousemove = onMove; cv.ontouchstart = onMove; cv.ontouchmove = onMove; cv.onmouseleave = hideTip; cv.ontouchend = hideTip;
 }
 
 function drawRevsChart(){
-  const rows=loadRevs().filter(r=>r.revs), cv=$('#revsChart'); if(!cv) return;
+  const rows=loadRevs().filter(r=>r.revs);
+  const cv=$('#revsChart'); if(!cv) return;
   const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
-  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-revsRange+1);
+  const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-revsRangeMem+1);
   const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
   const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.revs*mult})).sort((a,b)=>a.d.localeCompare(b.d));
   const padL=50,padR=10,padT=12,padB=34;
+  // axes
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
   cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText(`Distance (${unit})`, padL, H-10);
-
   if(!data.length) return;
-  const vals=data.map(d=>d.v); const yMin=Math.max(0, Math.floor((Math.min.apply(null, vals))*100)/100); const yMax=Math.max(0.01, Math.ceil((Math.max.apply(null, vals))*100)/100);
-  const smooth=revsSmooth; const sm=movingAvg(vals, smooth);
+
+  const vals=data.map(d=>d.v);
+  const yMin=Math.max(0, Math.floor(Math.min(...vals)*100)/100);
+  const yMax=Math.max(0.01, Math.ceil(Math.max(...vals)*100)/100);
+
+  const sm = movingAvg(vals, revsSmoothMem);
   const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
   const y=v => padT + (1-((v-yMin)/(yMax-yMin||1)))*(H-padT-padB);
-  // grid
+
+  // horizontal grid
   cx.textAlign='right'; cx.textBaseline='middle'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<=4;i++){ const t=i/4; const yv=padT+(1-t)*(H-padT-padB); const v=(yMin + t*(yMax-yMin)); cx.fillText(String(v.toFixed(2)), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); }
+
   // line
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
-  sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
+  sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); });
+  cx.stroke();
 
   // x labels
   const ticks=[]; const step=Math.max(1, Math.floor(data.length/6));
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); ticks.push({i,text:d.toLocaleDateString(undefined,{day:'2-digit',month:'short'})}); }
   cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted'); ticks.forEach(t=> cx.fillText(t.text, x(t.i), H-padB+6));
+
+  // points for hit test
+  const pts = data.map((p,i)=>({ x:x(i), y:y(sm[i]), d:p.d, dist:p.v }));
+  cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
+
+  // interactions
+  function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX - r.left, y:p.clientY - r.top}; }
+  function nearest(pt){ let best=null, bd=1e9; for(const p of pts){ const dx=pt.x-p.x, dy=pt.y-p.y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=p; } } return (bd<=18*18)?best:null; }
+  function tipHTML(p){ return `<b>${p.d}</b><br/>Distance: ${p.dist.toFixed(2)} ${unit}`; }
+  function onMove(e){ const p=pos(e), n=nearest(p); if(n){ showTip((e.touches?e.touches[0].clientX:e.clientX),(e.touches?e.touches[0].clientY:e.clientY), tipHTML(n)); } else { hideTip(); } }
+  cv.onmousemove = onMove; cv.ontouchstart = onMove; cv.ontouchmove = onMove; cv.onmouseleave = hideTip; cv.ontouchend = hideTip;
 }
 
 /* ------------------ after save ------------------ */
@@ -466,14 +561,13 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
   const exportJson = $('#exportJson');
   if (exportJson) exportJson.onclick = () => {
     const blob = new Blob([JSON.stringify({ wake: loadWake(), revs: loadRevs() }, null, 2)], { type:'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v24.json'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v26.json'; a.click();
   };
   const importJson = $('#importJson');
   if (importJson) importJson.addEventListener('change', async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try{
       const data = JSON.parse(await f.text()) || {};
-      // Backward-compat: if file contains "steps", treat as revs
       const R = Array.isArray(data.revs) ? data.revs : (Array.isArray(data.steps) ? data.steps.map(x=>({date:x.date,revs:x.steps,notes:x.notes})) : []);
       const W = Array.isArray(data.wake)? data.wake : [];
       const rMap = new Map(loadRevs().map(r=>[r.date,r])); R.forEach(r=>rMap.set(r.date, r));
@@ -521,8 +615,6 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
 function updateDot(){ const d=document.querySelector('.status-dot'); if(!d) return; d.classList.toggle('off', !navigator.onLine); }
 window.addEventListener('online', updateDot);
 window.addEventListener('offline', updateDot);
-
-/* SW register (reuse v23 SW) */
 function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const qs=new URL(window.location.href).searchParams;
@@ -536,7 +628,7 @@ function registerSW(){
   });
 }
 
-/* ------------------ FAB (+ Install banner) ---------- */
+/* ------------------ FAB + Install banner ------------- */
 function ensureFab(){
   if($('#fab')) return;
   const b=document.createElement('button'); b.id='fab'; b.className='fab'; b.title='Add entry'; b.textContent='+';
@@ -564,29 +656,21 @@ function bindMonthPickers(){
   monthPicker('#calTitle',       '#monthPicker',      ()=>calRef,      (d)=>{calRef=d; renderWakeCalendar();});
   monthPicker('#revsCalTitle',   '#revsMonthPicker',  ()=>revsCalRef,  (d)=>{revsCalRef=d; renderRevsCalendar();});
 
-  // Wake nav
   const prev=$('#prevMonth'), next=$('#nextMonth'), today=$('#todayMonth');
-  if(prev)  prev.onclick = ()=>{ calRef.setMonth(calRef.getMonth()-1); renderWakeCalendar(); };
-  if(next)  next.onclick = ()=>{ calRef.setMonth(calRef.getMonth()+1); renderWakeCalendar(); };
-  if(today) today.onclick= ()=>{ calRef=new Date(); renderWakeCalendar(); };
+  prev && (prev.onclick = ()=>{ calRef.setMonth(calRef.getMonth()-1); renderWakeCalendar(); });
+  next && (next.onclick = ()=>{ calRef.setMonth(calRef.getMonth()+1); renderWakeCalendar(); });
+  today&& (today.onclick= ()=>{ calRef=new Date(); renderWakeCalendar(); });
 
-  // Revs nav
   const rprev=$('#revsPrevMonth'), rnext=$('#revsNextMonth'), rtoday=$('#revsTodayMonth');
-  if(rprev)  rprev.onclick = ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()-1); renderRevsCalendar(); };
-  if(rnext)  rnext.onclick = ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()+1); renderRevsCalendar(); };
-  if(rtoday) rtoday.onclick= ()=>{ revsCalRef=new Date(); renderRevsCalendar(); };
-}
-
-/* ------------------ Chart controls ------------------ */
-function bindRevsChartControls(){
-  const rs=$('#revsSmooth'); if(rs){ rs.value=String(revsSmooth); rs.addEventListener('change',()=>{ revsSmooth=+rs.value; localStorage.setItem(RSMOOTH_KEY,String(revsSmooth)); drawRevsChart(); }); }
-  $$('.revsRangeBtn').forEach(b=> b.addEventListener('click',()=>{ revsRange=+b.getAttribute('data-range'); localStorage.setItem(RRANGE_KEY,String(revsRange)); drawRevsChart(); }));
+  rprev && (rprev.onclick = ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()-1); renderRevsCalendar(); });
+  rnext && (rnext.onclick = ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()+1); renderRevsCalendar(); });
+  rtoday&& (rtoday.onclick= ()=>{ revsCalRef=new Date(); renderRevsCalendar(); });
 }
 
 /* ------------------ Boot ---------------------------- */
 document.addEventListener('DOMContentLoaded', ()=>{
   initTheme(); initUnits();
-  bindHeaderHide(); bindTabs(); bindMonthPickers(); bindRevsChartControls();
+  bindHeaderHide(); bindTabs(); bindMonthPickers(); bindWakeChartControls(); bindRevsChartControls();
   initWakeForm(); initRevsForm();
 
   afterWake(loadWake());
@@ -599,4 +683,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   ensureFab(); showInstallBannerOnce(); updateDot(); registerSW();
 
   const inst=$('#installInfo'); if(inst) inst.onclick=()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.');
+
+  // Ensure charts render at least once
+  drawWakeChart();
+  drawRevsChart();
 });
