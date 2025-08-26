@@ -192,9 +192,70 @@ function renderWakeCalendar(){
     const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
     if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-low'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.wake?rec.wake:'—'}</div>`;
-    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Wake</b>: ${rec.wake||'—'}</div><div><b>Weight</b>: ${rec.weight||'—'} g</div><div><b>Mood</b>: ${rec.mood||'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div>`; } else { html=`<div>No wake entry for ${iso}.</div>`; } openModal('Wake • '+iso, html); };
+    cell.onclick=()=>openWakeDayModal(iso);
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
     box.appendChild(cell);
+  }
+}
+
+function openWakeDayModal(iso){
+  const rows = loadWake();
+  const rec  = rows.find(r=>r.date===iso);
+  const formHtml = `
+    <form id="wakeEditForm" class="col">
+      <div class="row">
+        <div class="col">
+          <label>Date</label>
+          <input id="we_date" type="date" value="${iso}" disabled />
+        </div>
+        <div class="col">
+          <label>Wake-Up</label>
+          <input id="we_wake" type="time" value="${rec? (rec.wake||''):''}" />
+        </div>
+      </div>
+      <div class="row mt">
+        <div class="col">
+          <label>Weight (g)</label>
+          <input id="we_weight" type="number" min="0" step="1" value="${rec? (rec.weight||''):''}" />
+        </div>
+        <div class="col">
+          <label>Mood</label>
+          <input id="we_mood" type="text" value="${rec? (rec.mood||''):''}" />
+        </div>
+      </div>
+      <label class="mt">Notes</label>
+      <textarea id="we_notes">${rec? (String(rec.notes||'').replace(/</g,'&lt;')):''}</textarea>
+      <div class="row mt end">
+        ${rec ? '<button id="we_delete" type="button" class="btn">Delete</button>' : ''}
+        <button id="we_save" type="submit" class="btn solid">${rec? 'Save' : 'Add'}</button>
+      </div>
+    </form>`;
+
+  openModal('Wake • '+iso, formHtml);
+
+  const form = document.getElementById('wakeEditForm');
+  if(!form) return;
+
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const updated = {
+      date: iso,
+      wake: document.getElementById('we_wake').value || '',
+      weight: document.getElementById('we_weight').value || '',
+      mood: document.getElementById('we_mood').value || '',
+      notes: document.getElementById('we_notes').value || ''
+    };
+    const next = rows.filter(r=>r.date!==iso).concat([updated]).sort((a,b)=>a.date.localeCompare(b.date));
+    saveWake(next); afterWake(next); document.getElementById('modal').hidden = true; toast('Saved ✓');
+  });
+
+  const delBtn = document.getElementById('we_delete');
+  if(delBtn){
+    delBtn.addEventListener('click', ()=>{
+      if(!confirm(`Delete wake entry for ${iso}?`)) return;
+      const next = rows.filter(r=>r.date!==iso);
+      saveWake(next); afterWake(next); document.getElementById('modal').hidden = true; toast('Deleted');
+    });
   }
 }
 
@@ -264,9 +325,68 @@ function renderRevsCalendar(){
     let dist=0; if(rec&&rec.revs) dist=+rec.revs*mult;
     if(dist>0){ if(dist<0.5)cell.classList.add('cell-low'); else if(dist<2)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec&&rec.revs? (dist.toFixed(2)+' '+unit):'—'}</div>`;
-    cell.onclick=()=>{ let html=''; if(rec){ html=`<div><b>Date</b>: ${iso}</div><div><b>Revs</b>: ${rec.revs||'—'}</div><div><b>Distance</b>: ${rec.revs? dist.toFixed(2)+' '+unit:'—'}</div><div class="mt"><b>Notes</b>: ${rec.notes? String(rec.notes).replace(/</g,'&lt;'):'—'}</div>`; } else { html=`<div>No revolutions entry for ${iso}.</div>`; } openModal('Revolutions • '+iso, html); };
+    cell.onclick=()=>openRevsDayModal(iso);
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); cell.click(); }});
     box.appendChild(cell);
+  }
+}
+
+function openRevsDayModal(iso){
+  const rows = loadRevs();
+  const rec  = rows.find(r=>r.date===iso);
+  const unit = localStorage.getItem(UNIT_KEY)||'km';
+  const mult = UNIT_MULT[unit];
+  const dist = rec && rec.revs ? ( (+rec.revs*mult).toFixed(2)+' '+unit ) : '—';
+
+  const formHtml = `
+    <form id="revsEditForm" class="col">
+      <div class="row">
+        <div class="col">
+          <label>Date</label>
+          <input id="re_date" type="date" value="${iso}" disabled />
+        </div>
+        <div class="col">
+          <label>Revolutions</label>
+          <input id="re_revs" type="number" min="0" step="1" value="${rec? (rec.revs||''):''}" />
+        </div>
+      </div>
+      <div class="row mt">
+        <div class="col">
+          <label>Distance (${unit})</label>
+          <input id="re_dist" type="text" value="${rec? dist:''}" disabled />
+        </div>
+      </div>
+      <label class="mt">Notes</label>
+      <textarea id="re_notes">${rec? (String(rec.notes||'').replace(/</g,'&lt;')):''}</textarea>
+      <div class="row mt end">
+        ${rec ? '<button id="re_delete" type="button" class="btn">Delete</button>' : ''}
+        <button id="re_save" type="submit" class="btn solid">${rec? 'Save' : 'Add'}</button>
+      </div>
+    </form>`;
+
+  openModal('Revolutions • '+iso, formHtml);
+
+  const revInput = document.getElementById('re_revs');
+  const distInput= document.getElementById('re_dist');
+  if(revInput && distInput){ revInput.addEventListener('input', ()=>{ const v = +revInput.value||0; distInput.value = (v*mult).toFixed(2)+' '+unit; }); }
+
+  const form = document.getElementById('revsEditForm');
+  if(!form) return;
+
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const updated = { date: iso, revs: document.getElementById('re_revs').value || '', notes: document.getElementById('re_notes').value || '' };
+    const next = rows.filter(r=>r.date!==iso).concat([updated]).sort((a,b)=>a.date.localeCompare(b.date));
+    saveRevs(next); afterRevs(next); document.getElementById('modal').hidden = true; toast('Saved ✓');
+  });
+
+  const delBtn = document.getElementById('re_delete');
+  if(delBtn){
+    delBtn.addEventListener('click', ()=>{
+      if(!confirm(`Delete revolutions entry for ${iso}?`)) return;
+      const next = rows.filter(r=>r.date!==iso);
+      saveRevs(next); afterRevs(next); document.getElementById('modal').hidden = true; toast('Deleted');
+    });
   }
 }
 
