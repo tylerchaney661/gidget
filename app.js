@@ -1,14 +1,17 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v26.3)
+   Gidget · Hamster Tracker — app.js (v26.5)
    - Wake + Revolutions (km/mi)
-   - Calendars with edit/delete popouts (fixed click handling)
+   - Calendars with edit/delete popouts
    - Trend charts + tooltips, grid, axis labels
-   - PWA, FAB, JSON/CSV, themes
+   - Entries tables + search
+   - Dashboard/stats, header hide, themes, accents
+   - JSON/CSV import/export, PWA SW, FAB, install banner
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
 const $  = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+
 function closestEl(el, selector){
   let n = el && el.nodeType === 1 ? el : (el && el.target) ? el.target : null;
   for (; n; n = n.parentElement) { if (n.matches && n.matches(selector)) return n; }
@@ -596,7 +599,7 @@ function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const qs=new URL(location.href).searchParams;
   if(qs.get('nosw')==='1') return;
-  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=23').then(reg=>reg.update()).catch(()=>{}); });
+  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=26').then(reg=>reg.update()).catch(()=>{}); });
   let reloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message', (evt)=>{
