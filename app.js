@@ -1,9 +1,13 @@
 /* =========================================================
    Gidget · Hamster Tracker — app.js (v26.6)
-   + Animations (tabs/modals), calendar year jumps
-   + Distance summary selector (Today/Week/Month/Year)
-   + Search highlighting, weekly backup reminder
-   + All v26.5 features retained
+   - Wake + Revolutions (km/mi)
+   - Calendars with edit/delete popouts
+   - Trend charts + tooltips, grid, axis labels
+   - Entries tables + search
+   - Dashboard/stats, header hide, themes, accents
+   - JSON/CSV import/export, PWA SW, FAB, install banner
+   - NEW: Dashboard distance toggle (today / week / month / year)
+   - Fix: calendars and trends reliably open edit popouts
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -85,7 +89,7 @@ function initTheme(){
 function initUnits(){
   const u = localStorage.getItem(UNIT_KEY) || 'km';
   const km=$('#unitKm'), mi=$('#unitMi');
-  function setU(val){ localStorage.setItem(UNIT_KEY,val); km?.classList.toggle('solid', val==='km'); mi?.classList.toggle('solid', val==='mi'); afterRevs(loadRevs()); drawRevsChart(); updateDistanceSummary(); }
+  function setU(val){ localStorage.setItem(UNIT_KEY,val); km?.classList.toggle('solid', val==='km'); mi?.classList.toggle('solid', val==='mi'); afterRevs(loadRevs()); drawRevsChart(); renderDash(); }
   km && (km.onclick=()=>setU('km')); mi && (mi.onclick=()=>setU('mi'));
   setU(u);
 }
@@ -105,24 +109,6 @@ function bindHeaderHide(){
   addEventListener('scroll', onScroll, {passive:true}); onScroll();
 }
 
-/* ------------------ animations ------------------ */
-function injectAnimStyles(){
-  if($('#gidget-anim-style')) return;
-  const s=document.createElement('style'); s.id='gidget-anim-style';
-  s.textContent = `
-  .fade-enter { opacity: 0; transform: translateY(6px); }
-  .fade-enter.fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity .18s ease, transform .18s ease; }
-  .modal .modal-content { transform: translateY(10px); opacity: 0; transition: transform .22s ease, opacity .22s ease; }
-  .modal:not([hidden]) .modal-content { transform: translateY(0); opacity: 1; }
-  `;
-  document.head.appendChild(s);
-}
-function animateIn(el){
-  if(!el) return;
-  el.classList.add('fade-enter');
-  requestAnimationFrame(()=>{ el.classList.add('fade-enter-active'); setTimeout(()=>{ el.classList.remove('fade-enter'); el.classList.remove('fade-enter-active'); }, 220); });
-}
-
 /* ------------------ tabs / panels ------------------ */
 function activateTab(name){
   $$('#tabs .tab').forEach(t=>{
@@ -130,11 +116,7 @@ function activateTab(name){
     t.classList.toggle('active', is);
     t.setAttribute('aria-selected', is ? 'true' : 'false');
   });
-  $$('.tabpanel').forEach(p=>{
-    const show = (p.id === ('panel-'+name));
-    p.hidden = !show;
-    if(show) animateIn(p);
-  });
+  $$('.tabpanel').forEach(p=>p.hidden=(p.id!==('panel-'+name)));
 }
 function bindTabs(){
   const tabs=$('#tabs'); if(!tabs) return;
@@ -159,8 +141,6 @@ const WAKE_KEY='gidget.wake';
 const REVS_KEY='gidget.revs';
 const WRANGE_KEY='gidget.wake.range', WSMOOTH_KEY='gidget.wake.smooth';
 const RRANGE_KEY='gidget.revs.range', RSMOOTH_KEY='gidget.revs.smooth';
-const BACKUP_KEY='gidget.backup.lastPrompt';
-const DIST_RANGE_KEY='gidget.distance.range'; // 'day'|'week'|'month'|'year'
 
 const loadWake=()=>{ try{ return JSON.parse(localStorage.getItem(WAKE_KEY))||[]; }catch{ return []; } };
 const saveWake=r=>localStorage.setItem(WAKE_KEY, JSON.stringify(r));
@@ -179,13 +159,6 @@ function filterRowsRevs(rows, q){
   return rows.filter(r => (r.date||'').toLowerCase().includes(q) ||
                           String(r.revs||'').toLowerCase().includes(q) ||
                           String(r.notes||'').toLowerCase().includes(q));
-}
-function highlight(text, q){
-  if(!q) return String(text||'');
-  try{
-    const safe = q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    return String(text||'').replace(new RegExp(safe,'gi'), m=>`<mark>${m}</mark>`);
-  }catch{ return String(text||''); }
 }
 
 /* ------------------ modals ------------------ */
@@ -209,62 +182,59 @@ function openModal(title, html){
   m.hidden = false;
 }
 
-/* ------------------ dashboard + distance summary ------------------ */
+/* ------------------ dashboard ------------------ */
+// Clickable distance card that cycles: today → week → month → year
+let dashModeIndex = Number(localStorage.getItem('gidget.distance.modeIndex')||0);
+const dashModes = ['today','week','month','year'];
+function calcDistance(mode){
+  const rows=loadRevs(), unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
+  const now=new Date();
+  if(mode==='today'){
+    const iso=ymd(now); const r=rows.find(x=>x.date===iso);
+    return r ? (+r.revs*mult).toFixed(2)+' '+unit : '—';
+  }
+  if(mode==='week'){
+    const start=new Date(now); start.setDate(now.getDate()-6);
+    const sum=rows.filter(r=>r.date>=ymd(start)&&r.date<=ymd(now)).reduce((a,b)=>a+(+b.revs||0),0);
+    return (sum*mult).toFixed(2)+' '+unit;
+  }
+  if(mode==='month'){
+    const mm=now.getMonth(), yy=now.getFullYear();
+    const sum=rows.filter(r=>{const d=new Date(r.date); return d.getMonth()===mm&&d.getFullYear()===yy;}).reduce((a,b)=>a+(+b.revs||0),0);
+    return (sum*mult).toFixed(2)+' '+unit;
+  }
+  if(mode==='year'){
+    const yy=now.getFullYear();
+    const sum=rows.filter(r=>{const d=new Date(r.date); return d.getFullYear()===yy;}).reduce((a,b)=>a+(+b.revs||0),0);
+    return (sum*mult).toFixed(2)+' '+unit;
+  }
+  return '—';
+}
 function renderDash(){
-  const w = loadWake(), r = loadRevs(), iso = ymd(new Date());
-  const tw = w.find(x=>x.date===iso), tr = r.find(x=>x.date===iso);
-  const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
+  const w = loadWake(), iso=ymd(new Date());
+  const tw = w.find(x=>x.date===iso);
   $('#dashWake') && ($('#dashWake').textContent = tw? (tw.wake||'—') : '—');
-  $('#dashSteps')&& ($('#dashSteps').textContent = tr? ( (+tr.revs*mult).toFixed(2)+' '+unit ) : '—');
-  updateDistanceSummary(); // ensure the new selector is reflected
-}
 
-function ensureDistanceSummaryControls(){
-  if($('#distanceSummary')) return;
-  // Try to place under an element with id "dashboard", else append to body top.
-  const host = $('#dashboard') || $('#todayBox')?.parentElement || document.body;
-  const wrap = document.createElement('div');
-  wrap.id = 'distanceSummary';
-  wrap.className = 'row gap mt';
-  wrap.innerHTML = `
-    <div class="seg">
-      <button class="segbtn" data-distrange="day">Today</button>
-      <button class="segbtn" data-distrange="week">This Week</button>
-      <button class="segbtn" data-distrange="month">This Month</button>
-      <button class="segbtn" data-distrange="year">This Year</button>
-    </div>
-    <div class="distValue"><strong>Total distance:</strong> <span id="distTotal">—</span></div>
-  `;
-  host.appendChild(wrap);
-  wrap.addEventListener('click', (e)=>{
-    const b=closestEl(e,'.segbtn'); if(!b) return;
-    const r=b.getAttribute('data-distrange');
-    localStorage.setItem(DIST_RANGE_KEY, r);
-    $$('.segbtn', wrap).forEach(x=>x.classList.toggle('solid', x===b));
-    updateDistanceSummary();
+  const labelMap = ['Today\'s distance','This week\'s distance','This month\'s distance','This year\'s distance'];
+  const val = calcDistance(dashModes[dashModeIndex]);
+  $('#dashSteps') && ($('#dashSteps').textContent = val);
+
+  // Update label if present; otherwise we leave the static HTML title
+  const lab = $('#dashStepsLabel');
+  if(lab) lab.textContent = labelMap[dashModeIndex];
+}
+function bindDashToggle(){
+  // Make the distance area (or its card) clickable to cycle the mode
+  const target = $('#dashStepsBox') || $('#dashSteps') || ($('#dashSteps')?.closest('.stat')) || null;
+  if(!target) return;
+  target.style.cursor = 'pointer';
+  target.addEventListener('click', ()=>{
+    dashModeIndex = (dashModeIndex + 1) % dashModes.length;
+    localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
+    renderDash();
+    // Gentle feedback
+    toast(`Showing ${['today','this week','this month','this year'][dashModeIndex]}`);
   });
-  // initial selection
-  const saved = localStorage.getItem(DIST_RANGE_KEY) || 'day';
-  const sel = wrap.querySelector(`.segbtn[data-distrange="${saved}"]`) || wrap.querySelector('.segbtn');
-  sel?.click();
-}
-function rangeStart(range){
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if(range==='day')  return d;
-  if(range==='week'){ const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return d; } // Monday start
-  if(range==='month'){ return new Date(d.getFullYear(), d.getMonth(), 1); }
-  if(range==='year'){ return new Date(d.getFullYear(), 0, 1); }
-  return d;
-}
-function updateDistanceSummary(){
-  const ctrl = $('#distanceSummary'); if(!ctrl) return;
-  const active = ctrl.querySelector('.segbtn.solid');
-  const range = active?.getAttribute('data-distrange') || localStorage.getItem(DIST_RANGE_KEY) || 'day';
-  const unit = localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
-  const start = rangeStart(range), startIso = ymd(start);
-  const total = loadRevs().filter(r=>r.date>=startIso && r.revs).reduce((s,r)=>s + (+r.revs||0), 0) * mult;
-  $('#distTotal').textContent = `${total.toFixed(2)} ${unit}`;
 }
 
 /* =================== Wake module =================== */
@@ -302,7 +272,7 @@ function renderWakeTable(rows){
   const data = filterRowsWake(rows, q);
   data.sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${highlight(r.date,q)}</td><td>${highlight(r.wake||'—',q)}</td><td>${highlight(r.weight||'—',q)}</td><td>${highlight(r.mood||'—',q)}</td>
+    tr.innerHTML=`<td>${r.date}</td><td>${r.wake||'—'}</td><td>${r.weight||'—'}</td><td>${r.mood||'—'}</td>
       <td class="notesCell"><button class="noteIcon">ℹ</button></td>
       <td><button class="btn small" data-del="${r.date}">Delete</button></td>`;
     tr.querySelector('.noteIcon').onclick=()=>openModal('Notes', r.notes ? String(r.notes).replace(/</g,'&lt;') : '—');
@@ -327,6 +297,7 @@ function renderWakeCalendar(){
     if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-low'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.wake||'—'}</div>`;
     cell.dataset.date = iso; cell.setAttribute('role','button'); cell.style.cursor='pointer';
+    cell.addEventListener('click', ()=> openWakeDayModal(iso)); // direct click (reliable)
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openWakeDayModal(iso); }});
     box.appendChild(cell);
   }
@@ -424,7 +395,7 @@ function renderRevsTable(rows){
   data.sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
     const dist = r.revs ? (+r.revs*mult).toFixed(2)+' '+unit : '—';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${highlight(r.date,q)}</td><td>${highlight(r.revs||'—',q)}</td><td>${highlight(dist,q)}</td>
+    tr.innerHTML=`<td>${r.date}</td><td>${r.revs||'—'}</td><td>${dist}</td>
       <td class="notesCell"><button class="noteIcon">ℹ</button></td>
       <td><button class="btn small" data-rdel="${r.date}">Delete</button></td>`;
     tr.querySelector('.noteIcon').onclick=()=>openModal('Notes', r.notes ? String(r.notes).replace(/</g,'&lt;'):'—');
@@ -451,6 +422,7 @@ function renderRevsCalendar(){
     if(dist>0){ if(dist<0.5)cell.classList.add('cell-low'); else if(dist<2)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.revs? (dist.toFixed(2)+' '+unit):'—'}</div>`;
     cell.dataset.date = iso; cell.setAttribute('role','button'); cell.style.cursor='pointer';
+    cell.addEventListener('click', ()=> openRevsDayModal(iso)); // direct click (reliable)
     cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openRevsDayModal(iso); }});
     box.appendChild(cell);
   }
@@ -558,7 +530,15 @@ function drawWakeChart(){
   function nearest(pt){ let best=null, bd=1e9; for(const p of pts){ const dx=pt.x-p.x, dy=pt.y-p.y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=p; } } return (bd<=18*18)?best:null; }
   function tipHTML(p){ return `<b>${p.d}</b><br/>Wake: ${fromMin(p.raw.m%1440)}`; }
   function onMove(e){ const p=pos(e), n=nearest(p); if(n){ showTip(p.cx,p.cy, tipHTML(n)); } else { hideTip(); } }
+  function onClick(e){
+    const r=cv.getBoundingClientRect();
+    const p=(e.touches&&e.touches[0])||e;
+    const pt={x:p.clientX-r.left, y:p.clientY-r.top};
+    let best=null,bd=1e9; for(const q of pts){ const dx=pt.x-q.x, dy=pt.y-q.y, dd=dx*dx+dy*dy; if(dd<bd){bd=dd; best=q;} }
+    if(best && bd<=18*18) openWakeDayModal(best.d);
+  }
   cv.onmousemove = onMove; cv.ontouchstart = onMove; cv.ontouchmove = onMove; cv.onmouseleave = hideTip; cv.ontouchend = hideTip;
+  cv.onclick = onClick; cv.addEventListener('touchend', onClick);
 }
 
 function drawRevsChart(){
@@ -598,7 +578,15 @@ function drawRevsChart(){
   function nearest(pt){ let best=null, bd=1e9; for(const p of pts){ const dx=pt.x-p.x, dy=pt.y-p.y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=p; } } return (bd<=18*18)?best:null; }
   function tipHTML(p){ return `<b>${p.d}</b><br/>Distance: ${p.dist.toFixed(2)} ${unit}`; }
   function onMove(e){ const p=pos(e), n=nearest(p); if(n){ showTip(p.cx,p.cy, tipHTML(n)); } else { hideTip(); } }
+  function onClick(e){
+    const r=cv.getBoundingClientRect();
+    const p=(e.touches&&e.touches[0])||e;
+    const pt={x:p.clientX-r.left, y:p.clientY-r.top};
+    let best=null,bd=1e9; for(const q of pts){ const dx=pt.x-q.x, dy=pt.y-q.y, dd=dx*dx+dy*dy; if(dd<bd){bd=dd; best=q;} }
+    if(best && bd<=18*18) openRevsDayModal(best.d);
+  }
   cv.onmousemove = onMove; cv.ontouchstart = onMove; cv.ontouchmove = onMove; cv.onmouseleave = hideTip; cv.ontouchend = hideTip;
+  cv.onclick = onClick; cv.addEventListener('touchend', onClick);
 }
 
 /* ------------------ after save ------------------ */
@@ -623,7 +611,6 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
   $('#exportJson')?.addEventListener('click', ()=>{
     const blob = new Blob([JSON.stringify({ wake: loadWake(), revs: loadRevs() }, null, 2)], { type:'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v26.json'; a.click();
-    localStorage.setItem(BACKUP_KEY, String(Date.now()));
   });
   $('#importJson')?.addEventListener('change', async (e)=>{
     const f=e.target.files[0]; if(!f) return;
@@ -652,7 +639,6 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
     ];
     const blob=new Blob([header+lines.join('\n')],{type:'text/csv'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
-    localStorage.setItem(BACKUP_KEY, String(Date.now()));
   });
   $('#importCsv')?.addEventListener('change',(e)=>{
     const f=e.target.files[0]; if(!f) return;
@@ -671,43 +657,6 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
   });
 })();
 
-/* ------------------ Weekly backup reminder --------- */
-function checkWeeklyBackup(){
-  const last = +(localStorage.getItem(BACKUP_KEY)||0);
-  const weekMs = 7*24*60*60*1000;
-  if(Date.now()-last > weekMs){
-    toast('Tip: export a backup this week?', `<button id="doJson" class="btn small">Export JSON</button>`);
-    $('#doJson')?.addEventListener('click', ()=> $('#exportJson')?.click());
-  }
-}
-
-/* ------------------ Calendar navigation ------------- */
-function enhanceCalendarNav(){
-  // Inject year-jump buttons if not present
-  if(!$('#prevYear') && $('#calTitle')){
-    const btns = document.createElement('div');
-    btns.className='row gap';
-    btns.innerHTML = `
-      <button id="prevYear" class="btn small">« Year</button>
-      <button id="nextYear" class="btn small">Year »</button>
-    `;
-    $('#calTitle').parentElement?.appendChild(btns);
-    $('#prevYear').addEventListener('click', ()=>{ calRef.setFullYear(calRef.getFullYear()-1); renderWakeCalendar(); });
-    $('#nextYear').addEventListener('click', ()=>{ calRef.setFullYear(calRef.getFullYear()+1); renderWakeCalendar(); });
-  }
-  if(!$('#revsPrevYear') && $('#revsCalTitle')){
-    const btns2 = document.createElement('div');
-    btns2.className='row gap';
-    btns2.innerHTML = `
-      <button id="revsPrevYear" class="btn small">« Year</button>
-      <button id="revsNextYear" class="btn small">Year »</button>
-    `;
-    $('#revsCalTitle').parentElement?.appendChild(btns2);
-    $('#revsPrevYear').addEventListener('click', ()=>{ revsCalRef.setFullYear(revsCalRef.getFullYear()-1); renderRevsCalendar(); });
-    $('#revsNextYear').addEventListener('click', ()=>{ revsCalRef.setFullYear(revsCalRef.getFullYear()+1); renderRevsCalendar(); });
-  }
-}
-
 /* ------------------ Online/offline + SW ------------- */
 function updateDot(){ const d=$('.status-dot'); d && d.classList.toggle('off', !navigator.onLine); }
 addEventListener('online', updateDot);
@@ -716,7 +665,7 @@ function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const qs=new URL(location.href).searchParams;
   if(qs.get('nosw')==='1') return;
-  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=27').then(reg=>reg.update()).catch(()=>{}); });
+  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=26').then(reg=>reg.update()).catch(()=>{}); });
   let reloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message', (evt)=>{
@@ -761,11 +710,9 @@ function bindMonthPickers(){
   $('#revsPrevMonth')?.addEventListener('click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()-1); renderRevsCalendar(); });
   $('#revsNextMonth')?.addEventListener('click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()+1); renderRevsCalendar(); });
   $('#revsTodayMonth')?.addEventListener('click',()=>{ revsCalRef=new Date(); renderRevsCalendar(); });
-
-  enhanceCalendarNav();
 }
 
-/* ------------------ Calendar delegated clicks -------- */
+/* ------------------ Calendar delegated clicks (kept) -------- */
 function bindCalendarClicks(){
   const cal = $('#calendar');
   cal && cal.addEventListener('click', (e)=>{ const cell=closestEl(e,'.cell'); if(!cell) return; const iso=cell.dataset.date; if(!iso) return; openWakeDayModal(iso); });
@@ -775,21 +722,19 @@ function bindCalendarClicks(){
 
 /* ------------------ Boot ---------------------------- */
 document.addEventListener('DOMContentLoaded', ()=>{
-  injectAnimStyles();
   initTheme(); initUnits();
   bindHeaderHide(); bindTabs(); bindMonthPickers(); bindCalendarClicks(); bindWakeChartControls(); bindRevsChartControls();
   initWakeForm(); initRevsForm();
 
   afterWake(loadWake());
   afterRevs(loadRevs());
+  bindDashToggle(); // click distance card to cycle modes
   renderDash();
-  ensureDistanceSummaryControls(); // new distance selector
 
   ensureSearchInput('#panel-entries',      '#wakeSearch', ()=>renderWakeTable(loadWake()));
   ensureSearchInput('#panel-revs-entries', '#revsSearch', ()=>renderRevsTable(loadRevs()));
 
   ensureFab(); showInstallBannerOnce(); updateDot(); registerSW();
-  checkWeeklyBackup();
 
   $('#installInfo')?.addEventListener('click', ()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.'));
 
