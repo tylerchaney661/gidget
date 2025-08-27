@@ -1,15 +1,15 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v27.0)
+   Gidget · Hamster Tracker — app.js (v27.2)
    - Wake + Revolutions (km/mi)
-   - Calendars w/ edit/delete popouts
-   - Trend charts + tooltips, grid, axis labels
+   - Calendars w/ edit/delete popouts (+ highlight today)
+   - "Today" month button jumps to today inside calendars
+   - Trend charts + tooltips, grid, axis labels, resize-safe
    - Entries tables + search
-   - Dashboard/stats, header hide, themes, accents
-   - JSON/CSV import/export, PWA SW, FAB, install banner
-   - Distance card cycles Today/Week/Month/Year (label + value)
-   - Explicit Today/Week/Month/Year buttons under distance card
-   - Live distance in Rev Log while typing + reflects unit changes
-   - Self-healing distance tile (auto-injects .stat-title/.stat-value)
+   - Dashboard distance tile: cycle & buttons (today/week/month/year)
+   - Live distance in Rev Log while typing + unit changes
+   - Header hide/shrink, themes, accents
+   - JSON/CSV import/export, PWA SW, Install banner
+   - Speed-dial FAB with two options (Log Wake / Log Revs)
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
@@ -33,10 +33,15 @@ function setupCanvas(cv, cssH=260){
 }
 function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
 function movingAvg(arr, n){ if(n<=1) return arr.slice(); const out=[]; let s=0; for(let i=0;i<arr.length;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= s/Math.min(n,i+1); } return out; }
-
 function debounce(fn, wait=150){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+function isSameYMD(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+function scrollCalendarTo(dateISO, gridSel){
+  const grid = document.querySelector(gridSel);
+  const cell = grid?.querySelector(`[data-date="${dateISO}"]`);
+  if(cell){ cell.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); }
+}
 
-/* Tooltip for charts */
+/* Tooltip (charts) */
 function ensureTip(){
   let tip = $('#chartTip');
   if(!tip){
@@ -91,7 +96,7 @@ function initTheme(){
   $$('.swatch').forEach(s=> s.onclick=()=>{ const acc=s.dataset.accent; localStorage.setItem(ACC_KEY,acc); applyTheme(localStorage.getItem(MODE_KEY)||'system',acc); });
 }
 
-/* Live distance helper (used by Rev Log + unit switch) */
+/* Live distance helper (Rev Log + unit switch) */
 function updateRevsLiveFromInput(){
   const inp = document.getElementById('revsCount');
   if(!inp) return;
@@ -110,6 +115,7 @@ function updateRevsLiveFromInput(){
   live.textContent = v ? `≈ ${(v * mult).toFixed(2)} ${unit}` : '—';
 }
 
+/* Units init (and re-render dependencies) */
 function initUnits(){
   const u = localStorage.getItem(UNIT_KEY) || 'km';
   const km=$('#unitKm'), mi=$('#unitMi');
@@ -117,10 +123,10 @@ function initUnits(){
     localStorage.setItem(UNIT_KEY,val);
     km?.classList.toggle('solid', val==='km');
     mi?.classList.toggle('solid', val==='mi');
-    afterRevs(loadRevs());
-    drawRevsChart();
-    renderDash();
-    updateRevsLiveFromInput(); // reflect unit change in live label
+    afterRevs(loadRevs());    // update today/avg/table/calendar
+    drawRevsChart();          // update chart axis/values
+    renderDash();             // update dash total
+    updateRevsLiveFromInput();// reflect unit change in "live" label
   }
   km && (km.onclick=()=>setU('km'));
   mi && (mi.onclick=()=>setU('mi'));
@@ -152,7 +158,6 @@ function activateTab(name){
   $$('.tabpanel').forEach(p=>p.hidden=(p.id!==('panel-'+name)));
   refreshPanel(name);
 }
-
 function refreshPanel(name){
   if(name==='trends'){ drawWakeChart(); }
   if(name==='calendar'){ renderWakeCalendar(); }
@@ -162,21 +167,18 @@ function refreshPanel(name){
   if(name==='revs-calendar'){ renderRevsCalendar(); }
   if(name==='revs-entries'){ renderRevsTable(loadRevs()); }
 }
-
 function bindTabs(){
   document.addEventListener('click', (e)=>{
     const tab = closestEl(e, '[data-tab]');
     if(!tab) return;
     const id = tab.getAttribute('data-tab');
     if(!id) return;
-    // Prevent default for anchors/buttons with href="#"
     if(tab.tagName==='A') e.preventDefault();
     activateTab(id);
   });
 }
 function bindResizeRedraw(){
   const doRedraw = debounce(()=>{
-    // Only redraw visible charts to avoid jank
     const wakePanel = $('#panel-trends');
     const revsPanel = $('#panel-revs-trends');
     if(wakePanel && !wakePanel.hidden) drawWakeChart();
@@ -240,7 +242,7 @@ function openModal(title, html){
   m.hidden = false;
 }
 
-/* ------------------ dashboard ------------------ */
+/* ------------------ dashboard distance tile ------------------ */
 let dashModeIndex = Number(localStorage.getItem('gidget.distance.modeIndex')||0);
 const dashModes = ['today','week','month','year'];
 
@@ -268,13 +270,11 @@ function calcDistance(mode){
   }
   return '—';
 }
-
 function renderDash(){
-  // ----- Wake tile -----
+  // Wake tile (self-heal)
   const w = loadWake(), iso = ymd(new Date());
   const tw = w.find(x=>x.date===iso);
   const wakeVal = tw ? (tw.wake || '—') : '—';
-
   const wakeBox = $('#dashWake')?.closest('.stat') || null;
   if (wakeBox) {
     let wTitle = wakeBox.querySelector('.stat-title');
@@ -283,38 +283,14 @@ function renderDash(){
       wakeBox.innerHTML = `
         <div class="stat-title">Today’s wake</div>
         <div class="stat-value" id="dashWake"></div>`;
-      wTitle = wakeBox.querySelector('.stat-title');
-      wValue = wakeBox.querySelector('.stat-value');
     }
-    wValue.textContent = wakeVal;
+    (wakeBox.querySelector('.stat-value')||$('#dashWake')).textContent = wakeVal;
   } else if ($('#dashWake')) {
     $('#dashWake').textContent = wakeVal;
   }
 
-  // ----- Distance tile (self-healing) -----
-  const host =
-    $('#dashStepsBox') ||
-    $('#dashSteps')?.closest('.stat') ||
-    null;
-
-  if (!host) {
-    const hardVal = $('#dashSteps');
-    if (hardVal) hardVal.textContent = calcDistance(dashModes[dashModeIndex]);
-    return;
-  }
-
-  let titleEl = host.querySelector('.stat-title');
-  let valueEl = host.querySelector('.stat-value');
-
-  if (!titleEl || !valueEl) {
-    host.innerHTML = `
-      <div class="stat-title" id="dashStepsLabel">Today’s distance</div>
-      <div class="stat-value" id="dashSteps"></div>
-    `;
-    titleEl = host.querySelector('.stat-title');
-    valueEl = host.querySelector('.stat-value');
-  }
-
+  // Distance tile (self-heal)
+  const host = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat') || null;
   const labels = [
     "Today’s distance",
     "This week’s distance",
@@ -324,20 +300,26 @@ function renderDash(){
   const label = labels[dashModeIndex];
   const value = calcDistance(dashModes[dashModeIndex]);
 
-  titleEl.textContent = label;
-  valueEl.textContent  = value;
+  if (host) {
+    let titleEl = host.querySelector('.stat-title');
+    let valueEl = host.querySelector('.stat-value');
+    if (!titleEl || !valueEl) {
+      host.innerHTML = `
+        <div class="stat-title" id="dashStepsLabel">${label}</div>
+        <div class="stat-value" id="dashSteps">${value}</div>`;
+    } else {
+      titleEl.textContent = label;
+      valueEl.textContent  = value;
+    }
+    ensureDistanceControls();
+  } else if ($('#dashSteps')) {
+    $('#dashSteps').textContent = value;
+    const scopeEl = $('#dashStepsLabel'); if (scopeEl) scopeEl.textContent = label;
+  }
 
   const scopeEl = $('#distScopeLabel');
   if (scopeEl) scopeEl.textContent = label;
-
-  const hardVal = document.getElementById('dashSteps');
-  if (hardVal && !hardVal.textContent) {
-    hardVal.textContent = value;
-  }
-
-  ensureDistanceControls();
 }
-
 function bindDashToggle(){
   const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
   if (!box) return;
@@ -353,7 +335,6 @@ function bindDashToggle(){
 function ensureDistanceControls(){
   const host = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
   if (!host) return;
-
   let bar = host.querySelector('.dist-controls');
   if (!bar) {
     bar = document.createElement('div');
@@ -448,6 +429,7 @@ function renderWakeCalendar(){
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
     const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
+    if(isSameYMD(d,new Date())) cell.classList.add('today');
     if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-low'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.wake||'—'}</div>`;
     cell.dataset.date = iso; cell.setAttribute('role','button'); cell.style.cursor='pointer';
@@ -580,6 +562,7 @@ function renderRevsCalendar(){
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const iso=ymd(d); const rec=rows.find(r=>r.date===iso);
     const cell=document.createElement('div'); cell.className='cell'; cell.style.opacity=(d.getMonth()===m)?1:.45;
+    if(isSameYMD(d,new Date())) cell.classList.add('today');
     let dist=0; if(rec?.revs) dist=+rec.revs*mult;
     if(dist>0){ if(dist<0.5)cell.classList.add('cell-low'); else if(dist<2)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.revs? (dist.toFixed(2)+' '+unit):'—'}</div>`;
@@ -642,7 +625,7 @@ function openRevsDayModal(iso){
   });
 }
 
-/* ------------------ charts with tooltips ------------------ */
+/* ------------------ trends with tooltips ------------------ */
 let wakeRange = +(localStorage.getItem(WRANGE_KEY)||7);
 let wakeSmooth= +(localStorage.getItem(WSMOOTH_KEY)||1);
 function bindWakeChartControls(){
@@ -827,7 +810,7 @@ function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const qs=new URL(location.href).searchParams;
   if(qs.get('nosw')==='1') return;
-  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=27').then(reg=>reg.update()).catch(()=>{}); });
+  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=27.2').then(reg=>reg.update()).catch(()=>{}); });
   let reloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message', (evt)=>{
@@ -837,16 +820,33 @@ function registerSW(){
   });
 }
 
-/* ------------------ FAB + Install banner ------------- */
+/* ------------------ FAB (speed-dial) + Install banner ------------- */
 function ensureFab(){
-  if($('#fab')) return;
-  const b=document.createElement('button'); b.id='fab'; b.className='fab'; b.title='Add entry'; b.textContent='+';
-  b.onclick=()=>{ const tab=$$('#tabs .tab').find(t=>t.classList.contains('active')); const id=tab?tab.getAttribute('data-tab'):'revs-log';
-    if(id==='revs-log'){ activateTab('revs-log'); $('#revsDate')?.focus(); }
-    else { activateTab('log'); $('#date')?.focus(); }
-    scrollTo({top:0,behavior:'smooth'});
-  };
-  document.body.appendChild(b);
+  if($('#speedDial')) return;
+
+  const dial = document.createElement('div');
+  dial.id = 'speedDial';
+  dial.className = 'speed-dial';
+
+  const miniWake = document.createElement('button');
+  miniWake.className = 'mini';
+  miniWake.innerHTML = `<span class="icon">⏰</span> Log Wake`;
+
+  const miniRevs = document.createElement('button');
+  miniRevs.className = 'mini';
+  miniRevs.innerHTML = `<span class="icon">⟳</span> Log Revolutions`;
+
+  const fab=document.createElement('button'); fab.className='fab'; fab.id='fab'; fab.title='Add entry'; fab.textContent='+';
+
+  fab.onclick = (e)=>{ e.stopPropagation(); dial.classList.toggle('open'); };
+  miniWake.onclick = (e)=>{ e.stopPropagation(); dial.classList.remove('open'); activateTab('log'); $('#date')?.focus(); scrollTo({top:0,behavior:'smooth'}); };
+  miniRevs.onclick = (e)=>{ e.stopPropagation(); dial.classList.remove('open'); activateTab('revs-log'); $('#revsDate')?.focus(); scrollTo({top:0,behavior:'smooth'}); };
+  document.addEventListener('click', (e)=>{ if(!e.target.closest('#speedDial')) dial.classList.remove('open'); });
+
+  dial.appendChild(miniWake);
+  dial.appendChild(miniRevs);
+  dial.appendChild(fab);
+  document.body.appendChild(dial);
 }
 function showInstallBannerOnce(){
   if(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return;
@@ -867,11 +867,19 @@ function bindMonthPickers(){
 
   $('#prevMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()-1); renderWakeCalendar(); });
   $('#nextMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderWakeCalendar(); });
-  $('#todayMonth')?.addEventListener('click',()=>{ calRef=new Date(); renderWakeCalendar(); });
+  $('#todayMonth')?.addEventListener('click',()=>{
+    const now=new Date(); calRef=new Date(now.getFullYear(), now.getMonth(), 1);
+    renderWakeCalendar();
+    scrollCalendarTo(ymd(now), '#calendar');
+  });
 
   $('#revsPrevMonth')?.addEventListener('click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()-1); renderRevsCalendar(); });
   $('#revsNextMonth')?.addEventListener('click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()+1); renderRevsCalendar(); });
-  $('#revsTodayMonth')?.addEventListener('click',()=>{ revsCalRef=new Date(); renderRevsCalendar(); });
+  $('#revsTodayMonth')?.addEventListener('click',()=>{
+    const now=new Date(); revsCalRef=new Date(now.getFullYear(), now.getMonth(), 1);
+    renderRevsCalendar();
+    scrollCalendarTo(ymd(now), '#revsCalendar');
+  });
 }
 
 /* ------------------ Calendar delegated clicks -------- */
