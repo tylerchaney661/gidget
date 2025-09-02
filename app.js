@@ -1,22 +1,21 @@
 /* =========================================================
-   Gidget · Hamster Tracker — app.js (v27.3)
-   Fixes:
-   - Calendars & buttons not responding (delegated handlers, guards)
-   - Modal: close on ✕, ESC, and backdrop click
-   - Restored theme palette (light/system/dark + accent swatches)
-   Kept:
-   - Wake + Revolutions (km/mi), live distance while typing
-   - Calendars w/ edit/delete popouts (+ highlight today, jump-to-today)
-   - Trends with tooltips, click point → modal, resize-safe
+   Gidget · Hamster Tracker — app.js (v27.4)
+   - Matches the v27.4 HTML/CSS you provided
+   - Wake + Revolutions (km/mi)
+   - Calendars with edit/delete popouts (+ highlight today)
+   - "Today" month button jumps to today inside calendars
+   - Trend charts + tooltips, grid, axis labels, resize-safe
    - Entries tables + search
-   - Dashboard distance tile (tap to cycle + mode buttons)
-   - Speed-dial FAB (Wake/Revs), PWA SW, JSON/CSV import/export
+   - Dashboard distance: cycle & buttons (today/week/month/year)
+   - Live distance in Rev Log while typing + reflects unit switch
+   - Header hide/shrink, themes, accents (swatches restored)
+   - JSON/CSV import/export, PWA SW, Install banner
+   - Speed-dial FAB with two options (Log Wake / Log Revs)
 ========================================================= */
 
 /* --------------------- helpers --------------------- */
 const $  = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
-const on  = (el,ev,fn,opts)=> el && el.addEventListener(ev,fn,opts||false);
 
 function closestEl(el, selector){
   let n = el && el.nodeType === 1 ? el : (el && el.target) ? el.target : null;
@@ -27,26 +26,21 @@ function ymd(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,
 function toMin(t){ if(!t) return null; const p=t.split(':'); return (+p[0])*60 + (+p[1]); }
 function fromMin(m){ return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
 function setupCanvas(cv, cssH=260){
-  if(!cv) return {W:0,H:0,dpr:1,ctx:null};
   cv.style.width='100%'; cv.style.height=(innerWidth<=700?320:cssH)+'px';
   const dpr=window.devicePixelRatio||1, rect=cv.getBoundingClientRect();
   cv.width=Math.max(1, Math.round(rect.width*dpr));
   cv.height=Math.max(1, Math.round(parseFloat(cv.style.height)*dpr));
-  const ctx=cv.getContext('2d'); if(ctx) ctx.setTransform(dpr,0,0,dpr,0,0);
-  return { W: rect.width, H: parseFloat(cv.style.height), dpr, ctx };
+  return { W: rect.width, H: parseFloat(cv.style.height), dpr };
 }
-function getCSS(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function getCSS(name){ return getComputedStyle(document.body).getPropertyValue(name).trim(); }
 function movingAvg(arr, n){ if(n<=1) return arr.slice(); const out=[]; let s=0; for(let i=0;i<arr.length;i++){ s+=arr[i]; if(i>=n) s-=arr[i-n]; out[i]= s/Math.min(n,i+1); } return out; }
 function debounce(fn, wait=150){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 function isSameYMD(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
 function scrollCalendarTo(dateISO, gridSel){
   const grid = document.querySelector(gridSel);
   const cell = grid?.querySelector(`[data-date="${dateISO}"]`);
-  if(cell){ cell.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); cell.classList.add('pulse'); setTimeout(()=>cell.classList.remove('pulse'),800); }
+  if(cell){ cell.scrollIntoView({behavior:'smooth', block:'center', inline:'center'}); }
 }
-
-/* Minimal global error guard so one error doesn't kill all handlers */
-window.addEventListener('error', ()=>{/* noop: keep UI alive */});
 
 /* Tooltip (charts) */
 function ensureTip(){
@@ -96,23 +90,11 @@ function applyTheme(mode,accent){
   root.style.setProperty('--acc', ACCENTS[accent]||ACCENTS.blue);
 }
 function initTheme(){
-  const m=localStorage.getItem(MODE_KEY)||'system';
-  const a=localStorage.getItem(ACC_KEY)||'blue';
-  applyTheme(m,a);
-
-  on($('#themeLight'),'click',()=>{ localStorage.setItem(MODE_KEY,'light');  applyTheme('light',  localStorage.getItem(ACC_KEY)||'blue'); });
-  on($('#themeSystem'),'click',()=>{ localStorage.setItem(MODE_KEY,'system'); applyTheme('system', localStorage.getItem(ACC_KEY)||'blue'); });
-  on($('#themeDark'),'click',()=>{ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',   localStorage.getItem(ACC_KEY)||'blue'); });
-
-  $$('.swatch').forEach(s=> on(s,'click',()=>{ const acc=s.dataset.accent; localStorage.setItem(ACC_KEY,acc); applyTheme(localStorage.getItem(MODE_KEY)||'system',acc); }));
-
-  // If theme controls are dynamically created later, re-bind them safely
-  document.addEventListener('click', (e)=>{
-    const sw = closestEl(e,'.swatch'); if(sw){ const acc=sw.dataset.accent; localStorage.setItem(ACC_KEY,acc); applyTheme(localStorage.getItem(MODE_KEY)||'system',acc); }
-    if(e.target.id==='themeLight'){ localStorage.setItem(MODE_KEY,'light');  applyTheme('light',localStorage.getItem(ACC_KEY)||'blue'); }
-    if(e.target.id==='themeSystem'){ localStorage.setItem(MODE_KEY,'system');applyTheme('system',localStorage.getItem(ACC_KEY)||'blue'); }
-    if(e.target.id==='themeDark'){ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',localStorage.getItem(ACC_KEY)||'blue'); }
-  });
+  const m=localStorage.getItem(MODE_KEY)||'system', a=localStorage.getItem(ACC_KEY)||'blue'; applyTheme(m,a);
+  $('#themeLight')?.addEventListener('click',()=>{ localStorage.setItem(MODE_KEY,'light');  applyTheme('light',  localStorage.getItem(ACC_KEY)||'blue'); });
+  $('#themeSystem')?.addEventListener('click',()=>{ localStorage.setItem(MODE_KEY,'system'); applyTheme('system', localStorage.getItem(ACC_KEY)||'blue'); });
+  $('#themeDark')?.addEventListener('click',()=>{ localStorage.setItem(MODE_KEY,'dark');   applyTheme('dark',   localStorage.getItem(ACC_KEY)||'blue'); });
+  $$('.swatch').forEach(s=> s.onclick=()=>{ const acc=s.dataset.accent; localStorage.setItem(ACC_KEY,acc); applyTheme(localStorage.getItem(MODE_KEY)||'system',acc); });
 }
 
 /* Live distance helper (Rev Log + unit switch) */
@@ -147,8 +129,8 @@ function initUnits(){
     renderDash();             // update dash total
     updateRevsLiveFromInput();// reflect unit change in "live" label
   }
-  on(km,'click',()=>setU('km'));
-  on(mi,'click',()=>setU('mi'));
+  km && (km.onclick=()=>setU('km'));
+  mi && (mi.onclick=()=>setU('mi'));
   setU(u);
 }
 
@@ -168,13 +150,18 @@ function bindHeaderHide(){
 }
 
 /* ------------------ tabs / panels ------------------ */
-function activateTab(name){
+function showPanel(name){
+  // tabs
   $$('#tabs .tab').forEach(t=>{
     const is = t.getAttribute('data-tab')===name;
     t.classList.toggle('active', is);
     t.setAttribute('aria-selected', is ? 'true' : 'false');
   });
-  $$('.tabpanel').forEach(p=>p.hidden=(p.id!==('panel-'+name)));
+  // panels (class-based toggle to match CSS .hidden)
+  $$('.tabpanel').forEach(p=>{
+    const shouldShow = p.id === ('panel-'+name);
+    p.classList.toggle('hidden', !shouldShow);
+  });
   refreshPanel(name);
 }
 function refreshPanel(name){
@@ -185,6 +172,7 @@ function refreshPanel(name){
   if(name==='revs-trends'){ drawRevsChart(); }
   if(name==='revs-calendar'){ renderRevsCalendar(); }
   if(name==='revs-entries'){ renderRevsTable(loadRevs()); }
+  if(name==='settings'){ /* nothing dynamic */ }
 }
 function bindTabs(){
   document.addEventListener('click', (e)=>{
@@ -192,16 +180,15 @@ function bindTabs(){
     if(!tab) return;
     const id = tab.getAttribute('data-tab');
     if(!id) return;
-    if(tab.tagName==='A') e.preventDefault();
-    activateTab(id);
+    if(tab.tagName==='A' || tab.tagName==='BUTTON') e.preventDefault();
+    showPanel(id);
   });
 }
 function bindResizeRedraw(){
   const doRedraw = debounce(()=>{
-    const wakePanel = $('#panel-trends');
-    const revsPanel = $('#panel-revs-trends');
-    if(wakePanel && !wakePanel.hidden) drawWakeChart();
-    if(revsPanel && !revsPanel.hidden) drawRevsChart();
+    // redraw only visible charts
+    if(!$('#panel-trends')?.classList.contains('hidden'))    drawWakeChart();
+    if(!$('#panel-revs-trends')?.classList.contains('hidden')) drawRevsChart();
   }, 200);
   window.addEventListener('resize', doRedraw, { passive: true });
 }
@@ -210,9 +197,9 @@ function bindResizeRedraw(){
 function monthPicker(titleSel,inputSel,getRef,setRef){
   const title=$(titleSel), input=$(inputSel); if(!title||!input) return;
   function open(){ const r=getRef(); input.value=`${r.getFullYear()}-${String(r.getMonth()+1).padStart(2,'0')}`; try{ input.showPicker?.(); }catch{} input.click?.(); }
-  on(title,'click', open);
-  on(title,'keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
-  on(input,'change', ()=>{ if(!input.value) return; const [yy,mm]=input.value.split('-').map(Number); setRef(new Date(yy,mm-1,1)); });
+  title.addEventListener('click', open);
+  title.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); }});
+  input.addEventListener('change', ()=>{ if(!input.value) return; const [yy,mm]=input.value.split('-').map(Number); setRef(new Date(yy,mm-1,1)); });
 }
 
 /* ---------------------- storage -------------------- */
@@ -240,37 +227,30 @@ function filterRowsRevs(rows, q){
                           String(r.notes||'').toLowerCase().includes(q));
 }
 
-/* ------------------ modals ------------------ */
-function ensureModal(){
-  let m = $('#modal');
-  if(!m){
-    m = document.createElement('div');
-    m.id = 'modal'; m.className = 'modal'; m.hidden = true;
-    m.innerHTML = `
-      <div class="modal-backdrop"></div>
-      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
-        <h3 id="modalTitle"></h3>
-        <div id="modalBody"></div>
-      </div>`;
-    document.body.appendChild(m);
-    // close controls
-    on(m.querySelector('.modal-backdrop'),'click',()=>{ m.hidden=true; });
-    on($('#modalClose'),'click',()=>{ $('#modal').hidden=true; });
-    document.addEventListener('keydown', e=>{ if(e.key==='Escape') $('#modal').hidden = true; });
-  }
-  return m;
-}
+/* ------------------ modal (pre-rendered in HTML) ------------------ */
 function openModal(title, html){
-  const m = ensureModal();
+  const m = $('#modal'); if(!m) return;
   $('#modalTitle').textContent = title;
   $('#modalBody').innerHTML = html;
   m.hidden = false;
+}
+function bindModalChrome(){
+  const modal = $('#modal'); if(!modal) return;
+  const close = ()=>{ modal.hidden = true; };
+  $('#modalClose')?.addEventListener('click', close);
+  $('#modalBackdrop')?.addEventListener('click', close);
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') close(); });
 }
 
 /* ------------------ dashboard distance tile ------------------ */
 let dashModeIndex = Number(localStorage.getItem('gidget.distance.modeIndex')||0);
 const dashModes = ['today','week','month','year'];
+const dashLabels = [
+  "Today’s distance",
+  "This week’s distance",
+  "This month’s distance",
+  "This year’s distance"
+];
 
 function calcDistance(mode){
   const rows=loadRevs(), unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
@@ -300,47 +280,24 @@ function renderDash(){
   // Wake tile
   const w = loadWake(), iso = ymd(new Date());
   const tw = w.find(x=>x.date===iso);
-  const wakeVal = tw ? (tw.wake || '—') : '—';
-  const wakeBox = $('#dashWake')?.closest('.stat') || null;
-  if (wakeBox) {
-    let wTitle = wakeBox.querySelector('.stat-title');
-    let wValue = wakeBox.querySelector('.stat-value');
-    if (!wTitle || !wValue) {
-      wakeBox.innerHTML = `
-        <div class="stat-title">Today’s wake</div>
-        <div class="stat-value" id="dashWake"></div>`;
-    }
-    (wakeBox.querySelector('.stat-value')||$('#dashWake')).textContent = wakeVal;
-  } else if ($('#dashWake')) {
-    $('#dashWake').textContent = wakeVal;
-  }
+  $('#dashWake') && ($('#dashWake').textContent = tw ? (tw.wake || '—') : '—');
 
-  // Distance tile
-  const host = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat') || null;
-  const labels = ["Today’s distance","This week’s distance","This month’s distance","This year’s distance"];
-  const label = labels[dashModeIndex];
-  const value = calcDistance(dashModes[dashModeIndex]);
-
+  // Distance tile (title + value + sub + buttons)
+  const host = $('#dashStepsBox');
   if (host) {
-    let titleEl = host.querySelector('.stat-title');
-    let valueEl = host.querySelector('.stat-value');
-    if (!titleEl || !valueEl) {
-      host.innerHTML = `<div class="stat-title" id="dashStepsLabel">${label}</div><div class="stat-value" id="dashSteps">${value}</div>`;
-    } else { titleEl.textContent = label; valueEl.textContent  = value; }
+    const label = dashLabels[dashModeIndex];
+    const value = calcDistance(dashModes[dashModeIndex]);
+    $('#dashStepsLabel') && ($('#dashStepsLabel').textContent = label);
+    $('#dashSteps')      && ($('#dashSteps').textContent      = value);
+    $('#dashStepsSub')   && ($('#dashStepsSub').textContent   = `Showing ${['today','this week','this month','this year'][dashModeIndex]}`);
     ensureDistanceControls();
-  } else if ($('#dashSteps')) {
-    $('#dashSteps').textContent = value;
-    const scopeEl = $('#dashStepsLabel'); if (scopeEl) scopeEl.textContent = label;
   }
-
-  const scopeEl = $('#distScopeLabel');
-  if (scopeEl) scopeEl.textContent = label;
 }
 function bindDashToggle(){
-  const box = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
+  const box = $('#dashStepsBox');
   if (!box) return;
   box.style.cursor = 'pointer';
-  on(box,'click',(e)=>{
+  box.addEventListener('click', (e)=>{
     if (closestEl(e, '.dist-controls')) return; // ignore button bar
     dashModeIndex = (dashModeIndex + 1) % dashModes.length;
     localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
@@ -349,24 +306,24 @@ function bindDashToggle(){
   });
 }
 function ensureDistanceControls(){
-  const host = $('#dashStepsBox') || $('#dashSteps')?.closest('.stat');
+  const host = $('#dashStepsBox');
   if (!host) return;
   let bar = host.querySelector('.dist-controls');
   if (!bar) {
     bar = document.createElement('div');
     bar.className = 'dist-controls';
-    bar.style.display = 'flex'; bar.style.gap = '6px'; bar.style.flexWrap = 'wrap'; bar.style.marginTop = '8px';
     bar.innerHTML = `
-      <button type="button" class="btn small" data-mode="today">Today</button>
-      <button type="button" class="btn small" data-mode="week">Week</button>
-      <button type="button" class="btn small" data-mode="month">Month</button>
-      <button type="button" class="btn small" data-mode="year">Year</button>`;
-    const valueEl = host.querySelector('.stat-value');
-    (valueEl?.parentElement||host).appendChild(bar);
-
-    on(bar,'click',(e)=>{
-      const btn = closestEl(e, 'button[data-mode]'); if (!btn) return;
-      const idx = ['today','week','month','year'].indexOf(btn.getAttribute('data-mode'));
+      <div class="btnrow">
+        <button type="button" class="btn small" data-mode="today">Today</button>
+        <button type="button" class="btn small" data-mode="week">Week</button>
+        <button type="button" class="btn small" data-mode="month">Month</button>
+        <button type="button" class="btn small" data-mode="year">Year</button>
+      </div>`;
+    host.appendChild(bar);
+    bar.addEventListener('click', (e)=>{
+      const btn = closestEl(e, 'button[data-mode]'); if(!btn) return;
+      const mode = btn.getAttribute('data-mode');
+      const idx = ['today','week','month','year'].indexOf(mode);
       if (idx >= 0) {
         dashModeIndex = idx;
         localStorage.setItem('gidget.distance.modeIndex', String(dashModeIndex));
@@ -385,18 +342,18 @@ function ensureDistanceControls(){
 let calRef=new Date();
 
 function initWakeForm(){
-  const d=$('#date'); if(d) d.value=ymd(new Date());
-  on($('#nowBtn'),'click', ()=> { const w=$('#wake'); if(w) w.value = new Date().toTimeString().slice(0,5); });
+  const d=$('#date'); d && (d.value=ymd(new Date()));
+  $('#nowBtn')?.addEventListener('click', ()=> $('#wake').value = new Date().toTimeString().slice(0,5));
   ['#wake','#weight','#mood','#notes'].forEach(sel=>{
-    const el=$(sel); el && on(el,'keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#save')?.click(); }});
+    const el=$(sel); el && el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#save')?.click(); }});
   });
-  on($('#save'),'click', ()=>{
-    if(!$('#date')?.value) return toast('Date is required');
-    const row={date:$('#date').value,wake:$('#wake')?.value||'',weight:$('#weight')?.value||'',mood:$('#mood')?.value||'',notes:$('#notes')?.value||''};
+  $('#save')?.addEventListener('click', ()=>{
+    if(!$('#date').value) return toast('Date is required');
+    const row={date:$('#date').value,wake:$('#wake').value,weight:$('#weight').value,mood:$('#mood').value,notes:$('#notes').value};
     const rows=loadWake().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
     saveWake(rows); afterWake(rows); toast('Wake saved ✓');
   });
-  on($('#clearForm'),'click', ()=>{ const ids=['#wake','#weight','#mood','#notes']; ids.forEach(i=>{ const el=$(i); if(el) el.value=''; }); });
+  $('#clearForm')?.addEventListener('click', ()=>{ $('#wake').value=$('#weight').value=$('#mood').value=$('#notes').value=''; });
 }
 function renderWakeToday(rows){
   const t=rows.find(r=>r.date===ymd(new Date())), box=$('#todayBox'); if(!box) return;
@@ -404,10 +361,10 @@ function renderWakeToday(rows){
 }
 function renderWakeStats(rows){
   let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)}
-  const streak=$('#streak'); if(streak) streak.textContent=`Streak: ${s} ${s===1?'day':'days'}`;
+  $('#streak') && ($('#streak').textContent=`Streak: ${s} ${s===1?'day':'days'}`);
   const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut);
   const ts=rows.filter(r=>r.date>=iso && r.wake).map(r=>toMin(r.wake));
-  const avg=$('#avg7'); if(avg) avg.textContent=`7-day avg: ${ts.length?fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)):'—'}`;
+  $('#avg7') && ($('#avg7').textContent=`7-day avg: ${ts.length?fromMin(Math.round(ts.reduce((a,b)=>a+b,0)/ts.length)):'—'}`);
 }
 function renderWakeTable(rows){
   const tb=$('#table tbody'); if(!tb) return; tb.innerHTML='';
@@ -422,17 +379,17 @@ function renderWakeTable(rows){
     tr.querySelector('.noteIcon').onclick=()=>openModal('Notes', r.notes ? String(r.notes).replace(/</g,'&lt;') : '—');
     tb.appendChild(tr);
   });
-  on(tb,'click', (e)=>{
+  tb.onclick = (e)=>{
     const d=e.target?.getAttribute?.('data-del'); if(!d) return;
     const all=loadWake(), deleted=all.find(r=>r.date===d), left=all.filter(r=>r.date!==d);
     saveWake(left); afterWake(left);
     toast(`Deleted wake entry ${d}`, `<button class="btn small" id="undoWake">Undo</button>`);
-    on($('#undoWake'),'click', ()=>{ const rows=loadWake().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); });
-  });
+    $('#undoWake')?.addEventListener('click', ()=>{ const rows=loadWake().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveWake(rows); afterWake(rows); });
+  };
 }
 function renderWakeCalendar(){
   const rows=loadWake(), box=$('#calendar'); if(!box) return; box.innerHTML='';
-  const title=$('#calTitle'); if(title) title.textContent=calRef.toLocaleString(undefined,{month:'long',year:'numeric'});
+  $('#calTitle') && ($('#calTitle').textContent=calRef.toLocaleString(undefined,{month:'long',year:'numeric'}));
   const y=calRef.getFullYear(), m=calRef.getMonth(), first=new Date(y,m,1);
   const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
   for(let i=0;i<42;i++){
@@ -442,8 +399,8 @@ function renderWakeCalendar(){
     if(rec&&rec.wake){ const mins=toMin(rec.wake); if(mins<1200)cell.classList.add('cell-low'); else if(mins<1380)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.wake||'—'}</div>`;
     cell.dataset.date = iso; cell.setAttribute('role','button'); cell.style.cursor='pointer';
-    on(cell,'click', ()=> openWakeDayModal(iso));
-    on(cell,'keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openWakeDayModal(iso); }});
+    cell.addEventListener('click', ()=> openWakeDayModal(iso));
+    cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openWakeDayModal(iso); }});
     box.appendChild(cell);
   }
 }
@@ -452,7 +409,7 @@ function openWakeDayModal(iso){
   const rec  = rows.find(r=>r.date===iso);
   const formHtml = `
     <form id="wakeEditForm" class="col">
-      <div class="row">
+      <div class="grid2 gap">
         <div class="col">
           <label>Date</label>
           <input id="we_date" type="date" value="${iso}" disabled />
@@ -462,7 +419,7 @@ function openWakeDayModal(iso){
           <input id="we_wake" type="time" value="${rec? (rec.wake||''):''}" />
         </div>
       </div>
-      <div class="row mt">
+      <div class="grid3 gap mt">
         <div class="col">
           <label>Weight (g)</label>
           <input id="we_weight" type="number" min="0" step="1" value="${rec? (rec.weight||''):''}" />
@@ -471,9 +428,11 @@ function openWakeDayModal(iso){
           <label>Mood</label>
           <input id="we_mood" type="text" value="${rec? (rec.mood||''):''}" />
         </div>
+        <div class="col">
+          <label>Notes</label>
+          <input id="we_notes" type="text" value="${rec? (String(rec.notes||'').replace(/"/g,'&quot;')):''}" />
+        </div>
       </div>
-      <label class="mt">Notes</label>
-      <textarea id="we_notes">${rec? (String(rec.notes||'').replace(/</g,'&lt;')):''}</textarea>
       <div class="row mt end">
         ${rec ? '<button id="we_delete" type="button" class="btn">Delete</button>' : ''}
         <button id="we_save" type="submit" class="btn solid">${rec? 'Save' : 'Add'}</button>
@@ -481,13 +440,19 @@ function openWakeDayModal(iso){
     </form>`;
   openModal('Wake • '+iso, formHtml);
   const form = $('#wakeEditForm'); if(!form) return;
-  on(form,'submit', (e)=>{
+  form.addEventListener('submit', (e)=>{
     e.preventDefault();
-    const updated = { date: iso, wake: $('#we_wake')?.value||'', weight: $('#we_weight')?.value||'', mood: $('#we_mood')?.value||'', notes: $('#we_notes')?.value||'' };
+    const updated = {
+      date: iso,
+      wake: $('#we_wake').value || '',
+      weight: $('#we_weight').value || '',
+      mood: $('#we_mood').value || '',
+      notes: $('#we_notes').value || ''
+    };
     const next = rows.filter(r=>r.date!==iso).concat([updated]).sort((a,b)=>a.date.localeCompare(b.date));
     saveWake(next); afterWake(next); $('#modal').hidden = true; toast('Saved ✓');
   });
-  on($('#we_delete'),'click', ()=>{
+  $('#we_delete')?.addEventListener('click', ()=>{
     if(!confirm(`Delete wake entry for ${iso}?`)) return;
     const next = rows.filter(r=>r.date!==iso);
     saveWake(next); afterWake(next); $('#modal').hidden = true; toast('Deleted');
@@ -496,26 +461,30 @@ function openWakeDayModal(iso){
 
 /* =================== Revolutions module =================== */
 let revsCalRef=new Date();
-let revsRange = +(localStorage.getItem(RRANGE_KEY)||7);
-let revsSmooth= +(localStorage.getItem(RSMOOTH_KEY)||1);
+let revsRangeMem = +(localStorage.getItem(RRANGE_KEY)||7);
+let revsSmoothMem= +(localStorage.getItem(RSMOOTH_KEY)||1);
 
 function initRevsForm(){
-  const d=$('#revsDate'); if(d) d.value=ymd(new Date());
-  on($('#revsTodayBtn'),'click', ()=>{ const dd=$('#revsDate'); if(dd) dd.value=ymd(new Date()); });
+  const d=$('#revsDate'); d && (d.value=ymd(new Date()));
+  $('#revsTodayBtn')?.addEventListener('click', ()=>{ $('#revsDate').value=ymd(new Date()); });
 
+  // Live distance as you type
   const revInp = document.getElementById('revsCount');
-  if (revInp) { on(revInp,'input', updateRevsLiveFromInput); updateRevsLiveFromInput(); }
+  if (revInp) {
+    revInp.addEventListener('input', updateRevsLiveFromInput);
+    updateRevsLiveFromInput();
+  }
 
   ['#revsCount','#revsNotes'].forEach(sel=>{
-    const el=$(sel); el && on(el,'keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#revsSave')?.click(); }});
+    const el=$(sel); el && el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('#revsSave')?.click(); }});
   });
-  on($('#revsSave'),'click', ()=>{
-    if(!$('#revsDate')?.value) return toast('Date is required');
-    const row={date:$('#revsDate').value,revs:$('#revsCount')?.value||'',notes:$('#revsNotes')?.value||''};
+  $('#revsSave')?.addEventListener('click', ()=>{
+    if(!$('#revsDate').value) return toast('Date is required');
+    const row={date:$('#revsDate').value,revs:$('#revsCount').value,notes:$('#revsNotes').value};
     const rows=loadRevs().filter(r=>r.date!==row.date).concat([row]).sort((a,b)=>a.date.localeCompare(b.date));
     saveRevs(rows); afterRevs(rows); toast('Revolutions saved ✓');
   });
-  on($('#revsClear'),'click', ()=>{ const c=$('#revsCount'); if(c) c.value=''; const n=$('#revsNotes'); if(n) n.value=''; updateRevsLiveFromInput(); });
+  $('#revsClear')?.addEventListener('click', ()=>{ $('#revsCount').value=''; $('#revsNotes').value=''; updateRevsLiveFromInput(); });
 }
 function renderRevsToday(rows){
   const t=rows.find(r=>r.date===ymd(new Date())), box=$('#revsTodayBox'); if(!box) return;
@@ -524,10 +493,10 @@ function renderRevsToday(rows){
 }
 function renderRevsStats(rows){
   let s=0,d=new Date(); while(rows.some(r=>r.date===ymd(d))){s++; d.setDate(d.getDate()-1)}
-  const st=$('#revsStreak'); if(st) st.textContent=`Streak: ${s} ${s===1?'day':'days'}`;
+  $('#revsStreak') && ($('#revsStreak').textContent=`Streak: ${s} ${s===1?'day':'days'}`);
   const cut=new Date(); cut.setDate(cut.getDate()-6); const iso=ymd(cut);
   const vals=rows.filter(r=>r.date>=iso&&r.revs).map(r=>+r.revs);
-  const avg=$('#revsAvg7'); if(avg) avg.textContent=`7-day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'} revs`;
+  $('#revsAvg7') && ($('#revsAvg7').textContent=`7-day avg: ${vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):'—'} revs`);
 }
 function renderRevsTable(rows){
   const tb=$('#revsTable tbody'); if(!tb) return; tb.innerHTML='';
@@ -544,17 +513,17 @@ function renderRevsTable(rows){
     tr.querySelector('.noteIcon').onclick=()=>openModal('Notes', r.notes ? String(r.notes).replace(/</g,'&lt;'):'—');
     tb.appendChild(tr);
   });
-  on(tb,'click',(e)=>{
+  tb.onclick=(e)=>{
     const d=e.target?.getAttribute?.('data-rdel'); if(!d) return;
     const all=loadRevs(), deleted=all.find(r=>r.date===d), left=all.filter(r=>r.date!==d);
     saveRevs(left); afterRevs(left);
     toast(`Deleted revolutions ${d}`, `<button class="btn small" id="undoRevs">Undo</button>`);
-    on($('#undoRevs'),'click', ()=>{ const rows=loadRevs().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveRevs(rows); afterRevs(rows); });
-  });
+    $('#undoRevs')?.addEventListener('click', ()=>{ const rows=loadRevs().filter(r=>r.date!==deleted.date).concat([deleted]).sort((a,b)=>a.date.localeCompare(b.date)); saveRevs(rows); afterRevs(rows); });
+  };
 }
 function renderRevsCalendar(){
   const rows=loadRevs(), box=$('#revsCalendar'); if(!box) return; box.innerHTML='';
-  const title=$('#revsCalTitle'); if(title) title.textContent=revsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'});
+  $('#revsCalTitle') && ($('#revsCalTitle').textContent=revsCalRef.toLocaleString(undefined,{month:'long',year:'numeric'}));
   const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
   const y=revsCalRef.getFullYear(), m=revsCalRef.getMonth(), first=new Date(y,m,1);
   const start=new Date(first); const lead=(first.getDay()+6)%7; start.setDate(1-lead);
@@ -566,8 +535,8 @@ function renderRevsCalendar(){
     if(dist>0){ if(dist<0.5)cell.classList.add('cell-low'); else if(dist<2)cell.classList.add('cell-mid'); else cell.classList.add('cell-high'); }
     cell.innerHTML=`<div class="d">${d.getDate()}</div><div class="tiny mt">${rec?.revs? (dist.toFixed(2)+' '+unit):'—'}</div>`;
     cell.dataset.date = iso; cell.setAttribute('role','button'); cell.style.cursor='pointer';
-    on(cell,'click', ()=> openRevsDayModal(iso));
-    on(cell,'keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openRevsDayModal(iso); }});
+    cell.addEventListener('click', ()=> openRevsDayModal(iso));
+    cell.tabIndex=0; cell.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openRevsDayModal(iso); }});
     box.appendChild(cell);
   }
 }
@@ -580,7 +549,7 @@ function openRevsDayModal(iso){
 
   const formHtml = `
     <form id="revsEditForm" class="col">
-      <div class="row">
+      <div class="grid2 gap">
         <div class="col">
           <label>Date</label>
           <input id="re_date" type="date" value="${iso}" disabled />
@@ -590,14 +559,16 @@ function openRevsDayModal(iso){
           <input id="re_revs" type="number" min="0" step="1" value="${rec? (rec.revs||''):''}" />
         </div>
       </div>
-      <div class="row mt">
+      <div class="grid2 gap mt">
         <div class="col">
           <label>Distance (${unit})</label>
           <input id="re_dist" type="text" value="${rec? dist:''}" disabled />
         </div>
+        <div class="col">
+          <label>Notes</label>
+          <input id="re_notes" type="text" value="${rec? (String(rec.notes||'').replace(/"/g,'&quot;')):''}" />
+        </div>
       </div>
-      <label class="mt">Notes</label>
-      <textarea id="re_notes">${rec? (String(rec.notes||'').replace(/</g,'&lt;')):''}</textarea>
       <div class="row mt end">
         ${rec ? '<button id="re_delete" type="button" class="btn">Delete</button>' : ''}
         <button id="re_save" type="submit" class="btn solid">${rec? 'Save' : 'Add'}</button>
@@ -607,17 +578,17 @@ function openRevsDayModal(iso){
   openModal('Revolutions • '+iso, formHtml);
 
   const revInput = $('#re_revs'), distInput = $('#re_dist');
-  if(revInput && distInput){ on(revInput,'input', ()=>{ const v=+revInput.value||0; const u=localStorage.getItem(UNIT_KEY)||'km'; const mult=UNIT_MULT[u]; distInput.value=(v*mult).toFixed(2)+' '+u; }); }
+  if(revInput && distInput){ revInput.addEventListener('input', ()=>{ const v=+revInput.value||0; const u=localStorage.getItem(UNIT_KEY)||'km'; const mult=UNIT_MULT[u]; distInput.value=(v*mult).toFixed(2)+' '+u; }); }
 
   const form = $('#revsEditForm'); if(!form) return;
-  on(form,'submit', (e)=>{
+  form.addEventListener('submit', (e)=>{
     e.preventDefault();
-    const updated = { date: iso, revs: $('#re_revs')?.value||'', notes: $('#re_notes')?.value||'' };
+    const updated = { date: iso, revs: $('#re_revs').value || '', notes: $('#re_notes').value || '' };
     const next = rows.filter(r=>r.date!==iso).concat([updated]).sort((a,b)=>a.date.localeCompare(b.date));
     saveRevs(next); afterRevs(next); $('#modal').hidden = true; toast('Saved ✓');
   });
 
-  on($('#re_delete'),'click', ()=>{
+  $('#re_delete')?.addEventListener('click', ()=>{
     if(!confirm(`Delete revolutions entry for ${iso}?`)) return;
     const next = rows.filter(r=>r.date!==iso);
     saveRevs(next); afterRevs(next); $('#modal').hidden = true; toast('Deleted');
@@ -628,19 +599,14 @@ function openRevsDayModal(iso){
 let wakeRange = +(localStorage.getItem(WRANGE_KEY)||7);
 let wakeSmooth= +(localStorage.getItem(WSMOOTH_KEY)||1);
 function bindWakeChartControls(){
-  const smooth=$('#smooth'); if(smooth){ smooth.value=String(wakeSmooth); on(smooth,'change',()=>{ wakeSmooth=+smooth.value; localStorage.setItem(WSMOOTH_KEY,String(wakeSmooth)); drawWakeChart(); }); }
-  $$('.rangeBtn').forEach(b=> on(b,'click',()=>{ wakeRange=+b.getAttribute('data-range'); localStorage.setItem(WRANGE_KEY,String(wakeRange)); drawWakeChart(); }));
+  const smooth=$('#smooth'); if(smooth){ smooth.value=String(wakeSmooth); smooth.addEventListener('change',()=>{ wakeSmooth=+smooth.value; localStorage.setItem(WSMOOTH_KEY,String(wakeSmooth)); drawWakeChart(); }); }
+  $$('.rangeBtn').forEach(b=> b.addEventListener('click',()=>{ wakeRange=+b.getAttribute('data-range'); localStorage.setItem(WRANGE_KEY,String(wakeRange)); drawWakeChart(); }));
 }
-let revsRangeMem = +(localStorage.getItem(RRANGE_KEY)||7);
-let revsSmoothMem= +(localStorage.getItem(RSMOOTH_KEY)||1);
-function bindRevsChartControls(){
-  const rs=$('#revsSmooth'); if(rs){ rs.value=String(revsSmoothMem); on(rs,'change',()=>{ revsSmoothMem=+rs.value; localStorage.setItem(RSMOOTH_KEY,String(revsSmoothMem)); drawRevsChart(); }); }
-  $$('.revsRangeBtn').forEach(b=> on(b,'click',()=>{ revsRangeMem=+b.getAttribute('data-range'); localStorage.setItem(RRANGE_KEY,String(revsRangeMem)); drawRevsChart(); }));
-}
-
 function drawWakeChart(){
   const rows=loadWake().filter(r=>r.wake), cv=$('#chart'); if(!cv) return;
-  const {W,H,ctx}=setupCanvas(cv,260); if(!ctx) return; const cx=ctx; cx.clearRect(0,0,W,H);
+  const empty=$('#wakeChartEmpty'); empty && (empty.style.display = rows.length ? 'none' : 'flex');
+
+  const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
   const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-wakeRange+1);
   const raw=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,m:toMin(r.wake)})).sort((a,b)=>a.d.localeCompare(b.d));
   const data = raw.map(x=>({d:x.d,v:x.m<900?x.m+1440:x.m})); // unwrap around midnight
@@ -650,6 +616,7 @@ function drawWakeChart(){
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
   cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText("Time (HH:MM)", padL, H-10);
 
+  // y grid ticks (18:00, 21:00, 00:00, 03:00)
   const x=i => padL + (i/(Math.max(1,data.length-1)))*(W-padL-padR);
   const y=val => padT + (1-((val-900)/(1800-900)))*(H-padT-padB);
   cx.textAlign='right'; cx.textBaseline='middle';
@@ -657,37 +624,48 @@ function drawWakeChart(){
 
   if(!data.length) return;
 
+  // smoothing + line
   const sm = movingAvg(data.map(d=>d.v), wakeSmooth);
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
   sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
 
+  // x labels
   const step=Math.max(1, Math.floor(data.length/6)); cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); cx.fillText(d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}), x(i), H-padB+6); }
 
+  // points + interactions
   const pts = data.map((p,i)=>({ x:x(i), y:y(p.v), d:p.d, raw:raw[i]}));
   cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
-
   function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left, y:p.clientY-r.top, cx:p.clientX, cy:p.clientY}; }
   function nearest(pt){ let best=null, bd=1e9; for(const p of pts){ const dx=pt.x-p.x, dy=pt.y-p.y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=p; } } return (bd<=18*18)?best:null; }
   function tipHTML(p){ return `<b>${p.d}</b><br/>Wake: ${fromMin(p.raw.m%1440)}`; }
   function onMove(e){ const p=pos(e), n=nearest(p); if(n){ showTip(p.cx,p.cy, tipHTML(n)); } else { hideTip(); } }
   function onClick(e){
-    const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; const pt={x:p.clientX-r.left, y:p.clientY-r.top};
+    const r=cv.getBoundingClientRect();
+    const p=(e.touches&&e.touches[0])||e;
+    const pt={x:p.clientX-r.left, y:p.clientY-r.top};
     let best=null,bd=1e9; for(const q of pts){ const dx=pt.x-q.x, dy=pt.y-q.y, dd=dx*dx+dy*dy; if(dd<bd){bd=dd; best=q;} }
     if(best && bd<=18*18) openWakeDayModal(best.d);
   }
-  on(cv,'mousemove', onMove); on(cv,'touchstart', onMove); on(cv,'touchmove', onMove); on(cv,'mouseleave', hideTip); on(cv,'touchend', hideTip);
-  on(cv,'click', onClick); on(cv,'touchend', onClick);
+  cv.onmousemove = onMove; cv.ontouchstart = onMove; cv.ontouchmove = onMove; cv.onmouseleave = hideTip; cv.ontouchend = hideTip;
+  cv.onclick = onClick; cv.addEventListener('touchend', onClick);
 }
 
+function bindRevsChartControls(){
+  const rs=$('#revsSmooth'); if(rs){ rs.value=String(revsSmoothMem); rs.addEventListener('change',()=>{ revsSmoothMem=+rs.value; localStorage.setItem(RSMOOTH_KEY,String(revsSmoothMem)); drawRevsChart(); }); }
+  $$('.revsRangeBtn').forEach(b=> b.addEventListener('click',()=>{ revsRangeMem=+b.getAttribute('data-range'); localStorage.setItem(RRANGE_KEY,String(revsRangeMem)); drawRevsChart(); }));
+}
 function drawRevsChart(){
   const rows=loadRevs().filter(r=>r.revs), cv=$('#revsChart'); if(!cv) return;
-  const {W,H,ctx}=setupCanvas(cv,260); if(!ctx) return; const cx=ctx; cx.clearRect(0,0,W,H);
+  const empty=$('#revsChartEmpty'); empty && (empty.style.display = rows.length ? 'none' : 'flex');
+
+  const {W,H,dpr}=setupCanvas(cv,260), cx=cv.getContext('2d'); cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H);
   const end=new Date(); const start=new Date(end); start.setDate(end.getDate()-revsRangeMem+1);
   const unit=localStorage.getItem(UNIT_KEY)||'km', mult=UNIT_MULT[unit];
   const data=rows.filter(r=>r.date>=ymd(start)).map(r=>({d:r.date,v:+r.revs*mult})).sort((a,b)=>a.d.localeCompare(b.d));
   const padL=50,padR=10,padT=12,padB=34;
 
+  // axes + y grid
   cx.strokeStyle=getCSS('--line'); cx.lineWidth=1; cx.beginPath(); cx.moveTo(padL,padT); cx.lineTo(padL,H-padB); cx.lineTo(W-padR,H-padB); cx.stroke();
   cx.fillStyle=getCSS('--muted'); cx.textAlign='left'; cx.fillText(`Distance (${unit})`, padL, H-10);
   if(!data.length) return;
@@ -701,26 +679,30 @@ function drawRevsChart(){
   cx.textAlign='right'; cx.textBaseline='middle'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<=4;i++){ const t=i/4; const yv=padT+(1-t)*(H-padT-padB); const v=(yMin + t*(yMax-yMin)); cx.fillText(String(v.toFixed(2)), padL-6, yv); cx.beginPath(); cx.moveTo(padL,yv); cx.lineTo(W-padR,yv); cx.strokeStyle=getCSS('--line'); cx.stroke(); }
 
+  // line
   cx.strokeStyle=getCSS('--acc'); cx.lineWidth=2; cx.beginPath();
   sm.forEach((v,i)=>{ const xv=x(i), yv=y(v); if(i) cx.lineTo(xv,yv); else cx.moveTo(xv,yv); }); cx.stroke();
 
+  // x labels
   const step=Math.max(1, Math.floor(data.length/6)); cx.textAlign='center'; cx.textBaseline='top'; cx.fillStyle=getCSS('--muted');
   for(let i=0;i<data.length;i+=step){ const d=new Date(data[i].d+'T00:00:00'); cx.fillText(d.toLocaleDateString(undefined,{day:'2-digit',month:'short'}), x(i), H-padB+6); }
 
+  // points + interactions
   const pts = data.map((p,i)=>({ x:x(i), y:y(sm[i]), d:p.d, dist:p.v }));
   cx.fillStyle=getCSS('--acc'); pts.forEach(p=>{ cx.beginPath(); cx.arc(p.x,p.y,2.5,0,Math.PI*2); cx.fill(); });
-
   function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; return {x:p.clientX-r.left, y:p.clientY-r.top, cx:p.clientX, cy:p.clientY}; }
   function nearest(pt){ let best=null, bd=1e9; for(const p of pts){ const dx=pt.x-p.x, dy=pt.y-p.y, dd=dx*dx+dy*dy; if(dd<bd){ bd=dd; best=p; } } return (bd<=18*18)?best:null; }
   function tipHTML(p){ return `<b>${p.d}</b><br/>Distance: ${p.dist.toFixed(2)} ${unit}`; }
   function onMove(e){ const p=pos(e), n=nearest(p); if(n){ showTip(p.cx,p.cy, tipHTML(n)); } else { hideTip(); } }
   function onClick(e){
-    const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e; const pt={x:p.clientX-r.left, y:p.clientY-r.top};
+    const r=cv.getBoundingClientRect();
+    const p=(e.touches&&e.touches[0])||e;
+    const pt={x:p.clientX-r.left, y:p.clientY-r.top};
     let best=null,bd=1e9; for(const q of pts){ const dx=pt.x-q.x, dy=pt.y-q.y, dd=dx*dx+dy*dy; if(dd<bd){bd=dd; best=q;} }
     if(best && bd<=18*18) openRevsDayModal(best.d);
   }
-  on(cv,'mousemove', onMove); on(cv,'touchstart', onMove); on(cv,'touchmove', onMove); on(cv,'mouseleave', hideTip); on(cv,'touchend', hideTip);
-  on(cv,'click', onClick); on(cv,'touchend', onClick);
+  cv.onmousemove = onMove; cv.ontouchstart = onMove; cv.ontouchmove = onMove; cv.onmouseleave = hideTip; cv.ontouchend = hideTip;
+  cv.onclick = onClick; cv.addEventListener('touchend', onClick);
 }
 
 /* ------------------ after save ------------------ */
@@ -742,11 +724,11 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
 
 /* ------------------ JSON Export/Import -------------- */
 (function bindJson(){
-  on($('#exportJson'),'click', ()=>{
+  $('#exportJson')?.addEventListener('click', ()=>{
     const blob = new Blob([JSON.stringify({ wake: loadWake(), revs: loadRevs() }, null, 2)], { type:'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='gidget_data_v27.json'; a.click();
   });
-  on($('#importJson'),'change', async (e)=>{
+  $('#importJson')?.addEventListener('change', async (e)=>{
     const f=e.target.files[0]; if(!f) return;
     try{
       const data = JSON.parse(await f.text())||{};
@@ -764,7 +746,7 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
 
 /* ------------------ CSV Export/Import -------------- */
 (function bindCsv(){
-  on($('#exportCsv'),'click', ()=>{
+  $('#exportCsv')?.addEventListener('click', ()=>{
     const wake=loadWake(), revs=loadRevs();
     const header='Type,Date,Wake-Up Time,Weight (g),Mood,Notes,Revolutions\n';
     const lines=[
@@ -774,7 +756,7 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
     const blob=new Blob([header+lines.join('\n')],{type:'text/csv'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gidget_data.csv'; a.click();
   });
-  on($('#importCsv'),'change',(e)=>{
+  $('#importCsv')?.addEventListener('change',(e)=>{
     const f=e.target.files[0]; if(!f) return;
     f.text().then((text)=>{
       const lines=text.trim().split(/\r?\n/); const header=lines.shift().split(',');
@@ -792,14 +774,14 @@ function ensureSearchInput(panelSel, inputIdSel, onInput){
 })();
 
 /* ------------------ Online/offline + SW ------------- */
-function updateDot(){ const d=$('.status-dot'); if(d) d.classList.toggle('off', !navigator.onLine); }
+function updateDot(){ const d=$('.status-dot'); d && d.classList.toggle('off', !navigator.onLine); }
 addEventListener('online', updateDot);
 addEventListener('offline', updateDot);
 function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const qs=new URL(location.href).searchParams;
   if(qs.get('nosw')==='1') return;
-  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=27.3').then(reg=>reg.update()).catch(()=>{}); });
+  addEventListener('load', ()=>{ navigator.serviceWorker.register('./sw.js?v=27.4').then(reg=>reg.update()).catch(()=>{}); });
   let reloaded=false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(reloaded) return; reloaded=true; location.reload(); });
   navigator.serviceWorker.addEventListener('message', (evt)=>{
@@ -827,10 +809,10 @@ function ensureFab(){
 
   const fab=document.createElement('button'); fab.className='fab'; fab.id='fab'; fab.title='Add entry'; fab.textContent='+';
 
-  on(fab,'click',(e)=>{ e.stopPropagation(); dial.classList.toggle('open'); });
-  on(miniWake,'click',(e)=>{ e.stopPropagation(); dial.classList.remove('open'); activateTab('log'); $('#date')?.focus(); scrollTo({top:0,behavior:'smooth'}); });
-  on(miniRevs,'click',(e)=>{ e.stopPropagation(); dial.classList.remove('open'); activateTab('revs-log'); $('#revsDate')?.focus(); scrollTo({top:0,behavior:'smooth'}); });
-  on(document,'click', (e)=>{ if(!e.target.closest('#speedDial')) dial.classList.remove('open'); });
+  fab.onclick = (e)=>{ e.stopPropagation(); dial.classList.toggle('open'); };
+  miniWake.onclick = (e)=>{ e.stopPropagation(); dial.classList.remove('open'); showPanel('log'); $('#date')?.focus(); scrollTo({top:0,behavior:'smooth'}); };
+  miniRevs.onclick = (e)=>{ e.stopPropagation(); dial.classList.remove('open'); showPanel('revs-log'); $('#revsDate')?.focus(); scrollTo({top:0,behavior:'smooth'}); };
+  document.addEventListener('click', (e)=>{ if(!e.target.closest('#speedDial')) dial.classList.remove('open'); });
 
   dial.appendChild(miniWake);
   dial.appendChild(miniRevs);
@@ -845,8 +827,8 @@ function showInstallBannerOnce(){
      <button id="ibInstall" class="btn small">How?</button>
      <button id="ibClose" class="btn small">Close</button>`;
   document.body.appendChild(wrap);
-  on($('#ibInstall'),'click',()=>{ alert('On iPhone (Safari): • Tap Share • Add to Home Screen.\nOn Android (Chrome): • Menu ⋮ • Add to Home screen.'); });
-  on($('#ibClose'),'click',()=>{ localStorage.setItem('gidget.install.dismissed','1'); wrap.remove(); });
+  $('#ibInstall').onclick=()=>{ alert('On iPhone (Safari): • Tap Share • Add to Home Screen.\nOn Android (Chrome): • Menu ⋮ • Add to Home screen.'); };
+  $('#ibClose').onclick=()=>{ localStorage.setItem('gidget.install.dismissed','1'); wrap.remove(); };
 }
 
 /* ------------------ Month pickers / nav ------------- */
@@ -854,33 +836,35 @@ function bindMonthPickers(){
   monthPicker('#calTitle',     '#monthPicker',     ()=>calRef,     (d)=>{calRef=d; renderWakeCalendar();});
   monthPicker('#revsCalTitle', '#revsMonthPicker', ()=>revsCalRef, (d)=>{revsCalRef=d; renderRevsCalendar();});
 
-  on($('#prevMonth'),'click', ()=>{ calRef.setMonth(calRef.getMonth()-1); renderWakeCalendar(); });
-  on($('#nextMonth'),'click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderWakeCalendar(); });
-  on($('#todayMonth'),'click',()=>{
+  $('#prevMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()-1); renderWakeCalendar(); });
+  $('#nextMonth')?.addEventListener('click', ()=>{ calRef.setMonth(calRef.getMonth()+1); renderWakeCalendar(); });
+  $('#todayMonth')?.addEventListener('click',()=>{
     const now=new Date(); calRef=new Date(now.getFullYear(), now.getMonth(), 1);
-    renderWakeCalendar(); scrollCalendarTo(ymd(now), '#calendar');
+    renderWakeCalendar();
+    scrollCalendarTo(ymd(now), '#calendar');
   });
 
-  on($('#revsPrevMonth'),'click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()-1); renderRevsCalendar(); });
-  on($('#revsNextMonth'),'click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()+1); renderRevsCalendar(); });
-  on($('#revsTodayMonth'),'click',()=>{
+  $('#revsPrevMonth')?.addEventListener('click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()-1); renderRevsCalendar(); });
+  $('#revsNextMonth')?.addEventListener('click', ()=>{ revsCalRef.setMonth(revsCalRef.getMonth()+1); renderRevsCalendar(); });
+  $('#revsTodayMonth')?.addEventListener('click',()=>{
     const now=new Date(); revsCalRef=new Date(now.getFullYear(), now.getMonth(), 1);
-    renderRevsCalendar(); scrollCalendarTo(ymd(now), '#revsCalendar');
+    renderRevsCalendar();
+    scrollCalendarTo(ymd(now), '#revsCalendar');
   });
 }
 
 /* ------------------ Calendar delegated clicks -------- */
 function bindCalendarClicks(){
   const cal = $('#calendar');
-  cal && on(cal,'click', (e)=>{ const cell=closestEl(e,'.cell'); if(!cell) return; const iso=cell.dataset.date; if(!iso) return; openWakeDayModal(iso); });
+  cal && cal.addEventListener('click', (e)=>{ const cell=closestEl(e,'.cell'); if(!cell) return; const iso=cell.dataset.date; if(!iso) return; openWakeDayModal(iso); });
   const rcal = $('#revsCalendar');
-  rcal && on(rcal,'click', (e)=>{ const cell=closestEl(e,'.cell'); if(!cell) return; const iso=cell.dataset.date; if(!iso) return; openRevsDayModal(iso); });
+  rcal && rcal.addEventListener('click', (e)=>{ const cell=closestEl(e,'.cell'); if(!cell) return; const iso=cell.dataset.date; if(!iso) return; openRevsDayModal(iso); });
 }
 
 /* ------------------ Boot ---------------------------- */
 document.addEventListener('DOMContentLoaded', ()=>{
   initTheme(); initUnits();
-  bindHeaderHide(); bindTabs(); bindMonthPickers(); bindCalendarClicks(); bindWakeChartControls(); bindRevsChartControls();
+  bindHeaderHide(); bindTabs(); bindMonthPickers(); bindCalendarClicks(); bindWakeChartControls(); bindRevsChartControls(); bindModalChrome();
   initWakeForm(); initRevsForm();
   bindResizeRedraw();
 
@@ -895,11 +879,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   ensureFab(); showInstallBannerOnce(); updateDot(); registerSW();
 
-  on($('#installInfo'),'click', ()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.'));
+  $('#installInfo')?.addEventListener('click', ()=>alert('On iPhone: open in Safari → Share → Add to Home Screen.\nOn Android: Chrome menu → Add to Home screen.'));
 
-  // Refresh the active tab’s panel on load
-  const initialActive = $$('#tabs .tab').find(t=>t.classList.contains('active'));
-  if(initialActive){ const id = initialActive.getAttribute('data-tab'); if(id) refreshPanel(id); }
+  // Ensure initially active tab's panel is visible (Revs Log per HTML)
+  showPanel('revs-log');
 
   drawWakeChart(); drawRevsChart();
 });

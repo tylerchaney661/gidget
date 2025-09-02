@@ -1,270 +1,273 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Gidget · Hamster Tracker</title>
-  <link rel="stylesheet" href="style.css?v=27.1">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0EA5E9">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css?v=27.4">
 </head>
 <body>
   <!-- Top bar -->
   <header id="topbar" class="topbar">
-    <div class="left">
-      <span class="brand">Gidget</span>
-      <span class="status-dot" title="Online status"></span>
-      <span class="divider"></span>
-      <div class="unit-toggle">
-        <button id="unitKm" class="chip" type="button">km</button>
-        <button id="unitMi" class="chip" type="button">mi</button>
-      </div>
+    <div class="brand">
+      <span class="dot status-dot" aria-hidden="true"></span>
+      <span class="title">Gidget · Hamster Tracker</span>
     </div>
-    <div class="center"></div>
-    <div class="right">
-      <button id="themeLight" class="chip" type="button">Light</button>
-      <button id="themeSystem" class="chip" type="button">System</button>
-      <button id="themeDark" class="chip" type="button">Dark</button>
-    </div>
+    <nav class="actions">
+      <button id="installInfo" class="btn small" title="Install">Install</button>
+    </nav>
   </header>
 
-  <main id="content">
-    <!-- Dashboard -->
-    <section class="dash">
-      <div class="stat" id="dashWakeBox">
+  <!-- Dashboard -->
+  <section class="wrap mtbar">
+    <div class="grid2 gap">
+      <div class="stat">
         <div class="stat-title">Today’s wake</div>
         <div class="stat-value" id="dashWake">—</div>
       </div>
-
-      <div class="stat" id="dashStepsBox">
+      <div class="stat" id="dashStepsBox" title="Tap to cycle: Today • Week • Month • Year">
         <div class="stat-title" id="dashStepsLabel">Today’s distance</div>
         <div class="stat-value" id="dashSteps">—</div>
-        <!-- distance scope buttons are injected here by JS (ensureDistanceControls) -->
+        <div class="stat-sub" id="dashStepsSub">—</div>
+        <!-- distance mode buttons get injected below by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Tabs -->
+  <div id="tabs" class="tabs wrap">
+    <button class="tab active" data-tab="revs-log">Revs Log</button>
+    <button class="tab" data-tab="revs-trends">Revs Trends</button>
+    <button class="tab" data-tab="revs-calendar">Revs Calendar</button>
+    <button class="tab" data-tab="revs-entries">Revs Entries</button>
+    <span class="sep"></span>
+    <button class="tab" data-tab="log">Wake Log</button>
+    <button class="tab" data-tab="trends">Wake Trends</button>
+    <button class="tab" data-tab="calendar">Wake Calendar</button>
+    <button class="tab" data-tab="entries">Wake Entries</button>
+    <span class="sep"></span>
+    <button class="tab" data-tab="settings">Settings</button>
+  </div>
+
+  <!-- Panels -->
+  <main class="wrap">
+
+    <!-- Revolutions Log -->
+    <section class="tabpanel" id="panel-revs-log">
+      <h3>Revolutions — Morning entry</h3>
+      <div class="grid2 gap">
+        <div class="col">
+          <label>Date</label>
+          <input id="revsDate" type="date">
+        </div>
+        <div class="col">
+          <label>Revolutions</label>
+          <input id="revsCount" inputmode="numeric" type="number" min="0" step="1" placeholder="e.g., 12345">
+          <div class="tiny mt5" id="revsLiveDist">—</div>
+        </div>
+      </div>
+      <label class="mt">Notes</label>
+      <textarea id="revsNotes" rows="3" placeholder="Optional notes…"></textarea>
+      <div class="row mt end">
+        <button id="revsTodayBtn" class="btn">Today</button>
+        <span class="flex1"></span>
+        <button id="revsClear" class="btn">Clear</button>
+        <button id="revsSave" class="btn solid">Save</button>
       </div>
     </section>
 
-    <!-- Tabs -->
-    <nav id="tabs" class="mt">
-      <button class="tab active" data-tab="revs-log">Revs Log</button>
-      <button class="tab" data-tab="revs-trends">Revs Trends</button>
-      <button class="tab" data-tab="revs-calendar">Revs Calendar</button>
-      <button class="tab" data-tab="revs-entries">Revs Entries</button>
-      <button class="tab" data-tab="log">Wake Log</button>
-      <button class="tab" data-tab="trends">Wake Trends</button>
-      <button class="tab" data-tab="calendar">Wake Calendar</button>
-      <button class="tab" data-tab="entries">Wake Entries</button>
-    </nav>
-
-    <!-- Panels -->
-    <section id="panel-revs-log" class="tabpanel" style="display:block;">
-      <div class="card">
-        <h3>Revolutions — Morning Log</h3>
-        <div class="row wrap mt">
-          <div class="col">
-            <label for="revsDate">Date</label>
-            <input id="revsDate" type="date">
-          </div>
-          <div class="col">
-            <label for="revsCount">Revolutions</label>
-            <input id="revsCount" type="number" min="0" step="1" placeholder="e.g. 12345">
-            <!-- live distance shows here -->
-          </div>
-          <div class="col">
-            <label for="revsNotes">Notes</label>
-            <input id="revsNotes" type="text" placeholder="optional">
-          </div>
+    <!-- Revolutions Trends -->
+    <section class="tabpanel hidden" id="panel-revs-trends">
+      <h3>Trends • Revolutions / Distance</h3>
+      <div class="row gap wrap">
+        <div class="btnrow">
+          <button class="btn small revsRangeBtn" data-range="7">7d</button>
+          <button class="btn small revsRangeBtn" data-range="14">14d</button>
+          <button class="btn small revsRangeBtn" data-range="30">30d</button>
+          <button class="btn small revsRangeBtn" data-range="90">90d</button>
+          <button class="btn small revsRangeBtn" data-range="180">180d</button>
         </div>
-        <div class="btnset mt">
-          <button id="revsTodayBtn" class="btn" type="button">Today</button>
-          <button id="revsClear" class="btn" type="button">Clear</button>
-          <button id="revsSave" class="btn solid" type="button">Save</button>
-        </div>
-        <div id="revsTodayBox" class="tiny mt"></div>
-        <div class="tiny mt" id="revsStreak"></div>
-        <div class="tiny mt" id="revsAvg7"></div>
+        <label class="ml">Smooth
+          <select id="revsSmooth">
+            <option value="1">x1</option>
+            <option value="2">x2</option>
+            <option value="3">x3</option>
+            <option value="5">x5</option>
+          </select>
+        </label>
+      </div>
+      <div class="chartwrap">
+        <canvas id="revsChart" height="260"></canvas>
+        <div class="chart-empty" id="revsChartEmpty">No data yet — add a few entries in Revs Log.</div>
       </div>
     </section>
 
-    <section id="panel-revs-trends" class="tabpanel" hidden>
-      <div class="card">
-        <h3>Trends • Revolutions / Distance</h3>
-        <div class="row wrap mt">
-          <div class="btnset">
-            <button class="btn revsRangeBtn" data-range="7">7d</button>
-            <button class="btn revsRangeBtn" data-range="14">14d</button>
-            <button class="btn revsRangeBtn" data-range="30">30d</button>
-            <button class="btn revsRangeBtn" data-range="90">90d</button>
-          </div>
-          <div class="input-right">
-            <label for="revsSmooth" class="ml tiny">Smoothing</label>
-            <select id="revsSmooth">
-              <option value="1">Off</option>
-              <option value="2">×2</option>
-              <option value="3">×3</option>
-              <option value="5">×5</option>
-            </select>
+    <!-- Revolutions Calendar -->
+    <section class="tabpanel hidden" id="panel-revs-calendar">
+      <div class="calhdr">
+        <button id="revsPrevMonth" class="btn small">‹</button>
+        <h3 id="revsCalTitle" class="cal-title" tabindex="0">Month</h3>
+        <button id="revsNextMonth" class="btn small">›</button>
+        <div class="flex1"></div>
+        <button id="revsTodayMonth" class="btn small">Today</button>
+        <input id="revsMonthPicker" type="month" class="monthpicker" />
+      </div>
+      <div class="calgrid" id="revsCalendar" aria-label="Revolutions calendar"></div>
+    </section>
+
+    <!-- Revolutions Entries -->
+    <section class="tabpanel hidden" id="panel-revs-entries">
+      <h3>Revolutions — Entries</h3>
+      <table id="revsTable" class="table">
+        <thead><tr><th>Date</th><th>Revs</th><th>Distance</th><th>Notes</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Wake Log -->
+    <section class="tabpanel hidden" id="panel-log">
+      <h3>Wake — Evening entry</h3>
+      <div class="grid2 gap">
+        <div class="col">
+          <label>Date</label>
+          <input id="date" type="date">
+        </div>
+        <div class="col">
+          <label>Wake-Up Time</label>
+          <div class="row gap">
+            <input id="wake" type="time" placeholder="hh:mm">
+            <button id="nowBtn" class="btn small">Now</button>
           </div>
         </div>
-        <div class="chart mt"><canvas id="revsChart"></canvas></div>
+      </div>
+      <div class="grid3 gap mt">
+        <div class="col">
+          <label>Weight (g)</label>
+          <input id="weight" type="number" min="0" step="1" placeholder="e.g., 45">
+        </div>
+        <div class="col">
+          <label>Mood</label>
+          <input id="mood" type="text" placeholder="e.g., curious, sleepy">
+        </div>
+        <div class="col">
+          <label>Notes</label>
+          <input id="notes" type="text" placeholder="Optional…">
+        </div>
+      </div>
+      <div class="row mt end">
+        <button id="clearForm" class="btn">Clear</button>
+        <button id="save" class="btn solid">Save</button>
       </div>
     </section>
 
-    <section id="panel-revs-calendar" class="tabpanel" hidden>
-      <div class="card">
-        <div class="row between center">
-          <h3 id="revsCalTitle">Month</h3>
-          <div class="btnset">
-            <button id="revsPrevMonth" class="btn" type="button">Prev</button>
-            <button id="revsTodayMonth" class="btn" type="button">Today</button>
-            <button id="revsNextMonth" class="btn" type="button">Next</button>
-            <input id="revsMonthPicker" type="month" class="visually-hidden" />
-          </div>
+    <!-- Wake Trends -->
+    <section class="tabpanel hidden" id="panel-trends">
+      <h3>Trends • Wake Time</h3>
+      <div class="row gap wrap">
+        <div class="btnrow">
+          <button class="btn small rangeBtn" data-range="7">7d</button>
+          <button class="btn small rangeBtn" data-range="14">14d</button>
+          <button class="btn small rangeBtn" data-range="30">30d</button>
+          <button class="btn small rangeBtn" data-range="90">90d</button>
         </div>
-        <div class="calendar">
-          <div class="weekhdr">
-            <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
-          </div>
-          <div id="revsCalendar" class="grid"></div>
-        </div>
+        <label class="ml">Smooth
+          <select id="smooth">
+            <option value="1">x1</option>
+            <option value="2">x2</option>
+            <option value="3">x3</option>
+            <option value="5">x5</option>
+          </select>
+        </label>
+      </div>
+      <div class="chartwrap">
+        <canvas id="chart" height="260"></canvas>
+        <div class="chart-empty" id="wakeChartEmpty">No data yet — add a few entries in Wake Log.</div>
       </div>
     </section>
 
-    <section id="panel-revs-entries" class="tabpanel" hidden>
-      <div class="card">
-        <h3>Revolutions — Entries</h3>
-        <div class="table-wrap mt">
-          <table id="revsTable">
-            <thead><tr><th>Date</th><th>Revolutions</th><th>Distance</th><th>Notes</th><th>Actions</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+    <!-- Wake Calendar -->
+    <section class="tabpanel hidden" id="panel-calendar">
+      <div class="calhdr">
+        <button id="prevMonth" class="btn small">‹</button>
+        <h3 id="calTitle" class="cal-title" tabindex="0">Month</h3>
+        <button id="nextMonth" class="btn small">›</button>
+        <div class="flex1"></div>
+        <button id="todayMonth" class="btn small">Today</button>
+        <input id="monthPicker" type="month" class="monthpicker" />
       </div>
+      <div class="calgrid" id="calendar" aria-label="Wake calendar"></div>
     </section>
 
-    <section id="panel-log" class="tabpanel" hidden>
-      <div class="card">
-        <h3>Wake — Log</h3>
-        <div class="row wrap mt">
-          <div class="col">
-            <label for="date">Date</label>
-            <input id="date" type="date">
-          </div>
-          <div class="col">
-            <label for="wake">Wake-Up</label>
-            <input id="wake" type="time" step="60">
-          </div>
-          <div class="col">
-            <label for="weight">Weight (g)</label>
-            <input id="weight" type="number" min="0" step="1" placeholder="e.g. 52">
-          </div>
-          <div class="col">
-            <label for="mood">Mood</label>
-            <input id="mood" type="text" placeholder="happy / chill…">
-          </div>
-          <div class="col">
-            <label for="notes">Notes</label>
-            <input id="notes" type="text" placeholder="optional">
-          </div>
-        </div>
-        <div class="btnset mt">
-          <button id="nowBtn" class="btn" type="button">Now</button>
-          <button id="clearForm" class="btn" type="button">Clear</button>
-          <button id="save" class="btn solid" type="button">Save</button>
-        </div>
-        <div id="todayBox" class="tiny mt"></div>
-        <div class="tiny mt" id="streak"></div>
-        <div class="tiny mt" id="avg7"></div>
-      </div>
+    <!-- Wake Entries -->
+    <section class="tabpanel hidden" id="panel-entries">
+      <h3>Wake — Entries</h3>
+      <table id="table" class="table">
+        <thead><tr><th>Date</th><th>Wake</th><th>Weight</th><th>Mood</th><th>Notes</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
     </section>
 
-    <section id="panel-trends" class="tabpanel" hidden>
+    <!-- Settings -->
+    <section class="tabpanel hidden" id="panel-settings">
+      <h3>Settings</h3>
       <div class="card">
-        <h3>Trends • Wake</h3>
-        <div class="row wrap mt">
-          <div class="btnset">
-            <button class="btn rangeBtn" data-range="7">7d</button>
-            <button class="btn rangeBtn" data-range="14">14d</button>
-            <button class="btn rangeBtn" data-range="30">30d</button>
-            <button class="btn rangeBtn" data-range="90">90d</button>
+        <h4>Theme</h4>
+        <div class="row gap wrap">
+          <div class="btnrow">
+            <button id="themeLight"  class="btn small">Light</button>
+            <button id="themeSystem" class="btn small">System</button>
+            <button id="themeDark"   class="btn small">Dark</button>
           </div>
-          <div class="input-right">
-            <label for="smooth" class="ml tiny">Smoothing</label>
-            <select id="smooth">
-              <option value="1">Off</option>
-              <option value="2">×2</option>
-              <option value="3">×3</option>
-              <option value="5">×5</option>
-            </select>
+          <div class="swatches">
+            <button class="swatch" data-accent="blue"   title="Blue"></button>
+            <button class="swatch" data-accent="mint"   title="Mint"></button>
+            <button class="swatch" data-accent="violet" title="Violet"></button>
+            <button class="swatch" data-accent="amber"  title="Amber"></button>
+            <button class="swatch" data-accent="rose"   title="Rose"></button>
           </div>
-        </div>
-        <div class="chart mt"><canvas id="chart"></canvas></div>
-      </div>
-    </section>
-
-    <section id="panel-calendar" class="tabpanel" hidden>
-      <div class="card">
-        <div class="row between center">
-          <h3 id="calTitle">Month</h3>
-          <div class="btnset">
-            <button id="prevMonth" class="btn" type="button">Prev</button>
-            <button id="todayMonth" class="btn" type="button">Today</button>
-            <button id="nextMonth" class="btn" type="button">Next</button>
-            <input id="monthPicker" type="month" class="visually-hidden" />
-          </div>
-        </div>
-        <div class="calendar">
-          <div class="weekhdr">
-            <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
-          </div>
-          <div id="calendar" class="grid"></div>
         </div>
       </div>
-    </section>
 
-    <section id="panel-entries" class="tabpanel" hidden>
-      <div class="card">
-        <h3>Wake — Entries</h3>
-        <div class="table-wrap mt">
-          <table id="table">
-            <thead><tr><th>Date</th><th>Wake</th><th>Weight</th><th>Mood</th><th>Notes</th><th>Actions</th></tr></thead>
-            <tbody></tbody>
-          </table>
+      <div class="card mt">
+        <h4>Units</h4>
+        <div class="btnrow">
+          <button id="unitKm" class="btn small">km</button>
+          <button id="unitMi" class="btn small">mi</button>
         </div>
       </div>
-    </section>
 
-    <!-- Export / Import -->
-    <section class="mt">
-      <div class="card">
-        <div class="row wrap between center">
-          <div class="btnset">
-            <button id="exportJson" class="btn" type="button">Export JSON</button>
-            <label class="btn" for="importJson" role="button">Import JSON</label>
-            <input id="importJson" type="file" accept=".json" class="visually-hidden">
-          </div>
-          <div class="btnset">
-            <button id="exportCsv" class="btn" type="button">Export CSV</button>
-            <label class="btn" for="importCsv" role="button">Import CSV</label>
-            <input id="importCsv" type="file" accept=".csv" class="visually-hidden">
-          </div>
-          <button id="installInfo" class="btn" type="button">Install</button>
+      <div class="card mt">
+        <h4>Export / Import</h4>
+        <div class="row gap wrap">
+          <button id="exportJson" class="btn">Export JSON</button>
+          <label class="btn">
+            Import JSON
+            <input id="importJson" type="file" accept="application/json" hidden>
+          </label>
+          <button id="exportCsv" class="btn">Export CSV</button>
+          <label class="btn">
+            Import CSV
+            <input id="importCsv" type="file" accept=".csv,text/csv" hidden>
+          </label>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Toast + Modal -->
-  <div id="toast" class="toast" hidden></div>
+  <!-- Modal + Toast -->
   <div id="modal" class="modal" hidden>
-    <div class="modal-content">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
       <h3 id="modalTitle"></h3>
       <div id="modalBody"></div>
     </div>
   </div>
+  <div id="toast" class="toast" hidden></div>
 
-  <!-- FAB speed-dial is injected by JS -->
-
-  <script src="app.js?v=27.1"></script>
+  <script src="app.js?v=27.4"></script>
 </body>
 </html>
